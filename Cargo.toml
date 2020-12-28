@@ -12,5 +12,6 @@ regex="1.4"
 #pest="2"
 #pest_derive = "2"
 pcre = "0.2.3"
+cached = "0.22"
 
 [lib]
