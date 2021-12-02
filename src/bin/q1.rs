@@ -1,8 +1,7 @@
 use advent_of_code::common::read_lines;
 fn main() {
     let v: Vec<i32> = read_lines("./input1.txt")
-        .unwrap()
-        .map(|x| x.unwrap().parse().unwrap())
+        .map(|x| x.parse().unwrap())
         .collect();
 
     fn count_incr(v: impl Iterator<Item = i32>) -> i32 {

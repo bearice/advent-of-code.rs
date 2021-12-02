@@ -1,28 +1,28 @@
-use std::io::{BufRead, Lines, Result};
+use std::io::BufRead;
 use std::path::Path;
 use std::{fs::File, io::BufReader};
 
-pub fn read_lines<P>(filename: P) -> Result<Lines<BufReader<File>>>
+pub fn read_lines<P>(filename: P) -> impl Iterator<Item = String>
 where
     P: AsRef<Path>,
 {
-    let file = File::open(filename)?;
-    Ok(BufReader::new(file).lines())
+    let file = File::open(filename).expect("open file");
+    BufReader::new(file).lines().map(|lines| lines.unwrap())
 }
 
 pub struct ReadChunks {
     buf: Vec<String>,
-    lines: Lines<BufReader<File>>,
+    lines: Box<dyn Iterator<Item = String>>,
 }
 
 impl ReadChunks {
-    pub fn new<P>(filename: P) -> Self
+    pub fn new<P: 'static>(filename: P) -> Self
     where
         P: AsRef<Path>,
     {
         Self {
             buf: vec![],
-            lines: read_lines(filename).unwrap(),
+            lines: Box::new(read_lines(filename)),
         }
     }
 }
@@ -31,12 +31,12 @@ impl Iterator for ReadChunks {
     type Item = Vec<String>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some(Ok(line)) = self.lines.next() {
-            if line.len() == 0 {
+        for line in &mut self.lines {
+            if line.is_empty() {
                 break;
             }
             self.buf.push(line);
         }
-        Some(std::mem::replace(&mut self.buf, Vec::new()))
+        Some(std::mem::take(&mut self.buf))
     }
 }
