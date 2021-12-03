@@ -1,45 +1,60 @@
+use std::ops::{Index, Not, Shl, Shr};
+
 use advent_of_code::common::read_lines;
 
-fn slope(x: usize, y: usize, cnt: &mut usize, i: &mut usize, j: &mut usize, line: &Vec<char>) {
-    // if y == 2 {
-    //     println!(
-    //         "y={},j={},j%y={}, i={}, s={}",
-    //         y,
-    //         j,
-    //         *j % y,
-    //         i,
-    //         line.get(*i).unwrap()
-    //     );
-    // }
-    if *j % y == 0 {
-        if line.get(*i).unwrap().eq(&'#') {
-            *cnt += 1;
-        }
-        *i += x;
-        *i %= line.len();
-    }
-    *j += 1;
+fn main() {
+    let data = read_lines("./input3.txt").collect::<Vec<_>>();
+    let data = data.iter().map(|x| x.as_bytes()).collect::<Vec<_>>();
+    let width = data[0].len();
+    let ans = count_bits(&data);
+    let gamma = bin_to_num(&ans);
+    let epsilon = gamma.not().shl(32 - width).shr(32 - width);
+    println!("gamma={} epsilon={}", gamma, epsilon);
+    let ans = gamma * epsilon;
+    println!("a1={}", ans);
+
+    let o2 = find_value(&data, 0, false);
+    let co2 = find_value(&data, 0, true);
+    let ans = o2 * co2;
+    println!("o2={} co2={} ans={}", o2, co2, ans);
 }
 
-fn main() {
-    let mut lines = read_lines("./input3.txt").unwrap();
-    let mut i = (0, 0, 0, 0, 0);
-    let mut j = (0, 0, 0, 0, 0);
-    let mut cnt = (0, 0, 0, 0, 0);
-
-    while let Some(Ok(line)) = lines.next() {
-        let a: Vec<char> = line.chars().collect();
-        macro_rules! slope {
-            ($x:expr, $y:expr, $z:tt ) => {
-                slope($x, $y, (&mut cnt.$z), (&mut i.$z), (&mut j.$z), &a);
-            };
-        }
-        slope!(1, 1, 0);
-        slope!(3, 1, 1);
-        slope!(5, 1, 2);
-        slope!(7, 1, 3);
-        slope!(1, 2, 4);
+fn bin_to_num(data: &[u8]) -> u32 {
+    let mut ans = 0;
+    for i in 0..data.len() {
+        ans += u32::from(data[i]) * 2u32.pow((data.len() - i - 1) as u32);
     }
-    // println!("{:?}", cnt);
-    println!("{}", cnt.0 * cnt.1 * cnt.2 * cnt.3 * cnt.4);
+    ans
+}
+
+fn count_bits(data: &[&[u8]]) -> Vec<u8> {
+    let width = data[0].len();
+    let ret = data.iter().fold(vec![(0, 0); width], |mut acc, line| {
+        for i in 0..width {
+            let a = acc[i];
+            acc[i] = if line[i] == 48 {
+                (a.0 + 1, a.1)
+            } else {
+                (a.0, a.1 + 1)
+            }
+        }
+        acc
+    });
+    ret.into_iter()
+        .map(|x| if x.0 > x.1 { 0 } else { 1 })
+        .collect()
+}
+
+fn find_value(data: &[&[u8]], idx: usize, neg: bool) -> u32 {
+    if data.len() == 1 {
+        let data = data[0].iter().map(|x| x - 48).collect::<Vec<_>>();
+        return bin_to_num(&data);
+    }
+    let flag = count_bits(data)[idx] + 48;
+    let data = data
+        .iter()
+        .cloned()
+        .filter(|x| (x[idx] == flag) ^ neg)
+        .collect::<Vec<_>>();
+    find_value(&data, idx + 1, neg)
 }
