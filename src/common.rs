@@ -37,6 +37,10 @@ impl Iterator for ReadChunks {
             }
             self.buf.push(line);
         }
-        Some(std::mem::take(&mut self.buf))
+        if self.buf.is_empty() {
+            None
+        } else {
+            Some(std::mem::take(&mut self.buf))
+        }
     }
 }
