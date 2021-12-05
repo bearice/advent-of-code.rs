@@ -13,7 +13,7 @@ struct Line {
 impl Line {
     fn parse(s: String) -> Self {
         let s = s.replace(" -> ", ",");
-        let mut parts = s.split(",");
+        let mut parts = s.split(',');
         Line {
             x1: parts.next().unwrap().parse().unwrap(),
             y1: parts.next().unwrap().parse().unwrap(),

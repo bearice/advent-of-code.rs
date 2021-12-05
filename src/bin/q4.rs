@@ -51,10 +51,10 @@ fn check_board(board: &[Vec<(u8, bool)>], x: usize, y: usize) -> bool {
 
 fn score_board(board: &[Vec<(u8, bool)>], n: u8) -> u32 {
     let mut ret = 0;
-    for x in 0..5 {
-        for y in 0..5 {
-            if !board[x][y].1 {
-                ret += board[x][y].0 as u32;
+    for line in board {
+        for cell in line {
+            if !cell.1 {
+                ret += cell.0 as u32;
             }
         }
     }
