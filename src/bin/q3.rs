@@ -29,20 +29,13 @@ fn bin_to_num(data: &[u8]) -> u32 {
 
 fn count_bits(data: &[&[u8]]) -> Vec<u8> {
     let width = data[0].len();
-    let ret = data.iter().fold(vec![(0, 0); width], |mut acc, line| {
+    let ret = data.iter().fold(vec![0; width], |mut acc, line| {
         for i in 0..width {
-            let a = acc[i];
-            acc[i] = if line[i] == 48 {
-                (a.0 + 1, a.1)
-            } else {
-                (a.0, a.1 + 1)
-            }
+            acc[i] += if line[i] == 48 { -1 } else { 1 }
         }
         acc
     });
-    ret.into_iter()
-        .map(|x| if x.0 > x.1 { 0 } else { 1 })
-        .collect()
+    ret.into_iter().map(|x| if x < 0 { 0 } else { 1 }).collect()
 }
 
 fn find_value(data: &[&[u8]], idx: usize, neg: bool) -> u32 {
