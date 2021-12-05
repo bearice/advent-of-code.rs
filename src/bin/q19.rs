@@ -47,15 +47,15 @@ fn main() {
     //0: 8 11 -> 42+ (?<pn> 42 (?&pn) 31)
     //8: 42 | 42 8
     //11: 42 31 | 42 11 31
-    let r42 = gen_regex(&l, l[42].1);
-    let r31 = gen_regex(&l, l[31].1);
-    let r2s = format!("^{}+(?<pn>{}(?&pn)?{})$", r42, r42, r31);
-    let mut r2 = pcre::Pcre::compile(&r2s).unwrap();
+    // let r42 = gen_regex(&l, l[42].1);
+    // let r31 = gen_regex(&l, l[31].1);
+    // let r2s = format!("^{}+(?<pn>{}(?&pn)?{})$", r42, r42, r31);
+    // let mut r2 = pcre::Pcre::compile(&r2s).unwrap();
 
-    let p2: Vec<_> = lines
-        .iter()
-        .map(|s| r2.exec(&s))
-        .filter(Option::is_some)
-        .collect();
-    println!("p2={}", p2.len());
+    // let p2: Vec<_> = lines
+    //     .iter()
+    //     .map(|s| r2.exec(&s))
+    //     .filter(Option::is_some)
+    //     .collect();
+    // println!("p2={}", p2.len());
 }

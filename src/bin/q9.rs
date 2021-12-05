@@ -13,8 +13,7 @@ fn validate(v: &[usize], n: usize) -> bool {
 }
 fn main() {
     let numbers: Vec<usize> = read_lines("./input9.txt")
-        .unwrap()
-        .map(|x| x.unwrap().parse().unwrap())
+        .map(|x| x.parse().unwrap())
         .collect();
 
     let window = 25;

@@ -83,7 +83,7 @@ fn score(winner: &VecDeque<usize>) -> usize {
 }
 
 fn main() {
-    let mut lines = read_lines("./input22.txt").unwrap().map(Result::unwrap);
+    let mut lines = read_lines("./input22.txt");
     let p1 = read_numbers(&mut lines);
     let p2 = read_numbers(&mut lines);
 

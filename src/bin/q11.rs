@@ -128,8 +128,6 @@ where
 }
 fn main() {
     let seats: Seats = read_lines("./input11.txt")
-        .unwrap()
-        .map(Result::unwrap)
         .map(|s| s.chars().collect())
         .collect();
 

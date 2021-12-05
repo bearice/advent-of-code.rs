@@ -4,7 +4,7 @@ fn main() {
     let mut chunks = ReadChunks::new("./input4.txt");
     let cards = chunks.next().unwrap();
     let cards = cards[0]
-        .split(",")
+        .split(',')
         .map(|x| x.parse().unwrap())
         .collect::<Vec<u8>>();
     let mut boards = chunks
@@ -53,7 +53,7 @@ fn score_board(board: &[Vec<(u8, bool)>], n: u8) -> u32 {
     let mut ret = 0;
     for x in 0..5 {
         for y in 0..5 {
-            if board[x][y].1 == false {
+            if !board[x][y].1 {
                 ret += board[x][y].0 as u32;
             }
         }

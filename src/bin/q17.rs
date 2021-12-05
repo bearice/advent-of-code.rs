@@ -10,11 +10,11 @@ fn main() {
 }
 fn init() -> Vec<CubePos> {
     let mut ret = vec![];
-    let lines = read_lines("./input17.txt").unwrap();
+    let lines = read_lines("./input17.txt");
     let mut y = 0;
     let mut x = 0;
     for line in lines {
-        for ch in line.unwrap().chars() {
+        for ch in line.chars() {
             if ch == '#' {
                 ret.push((x, y, 0, 0));
             }

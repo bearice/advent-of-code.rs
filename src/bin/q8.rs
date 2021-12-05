@@ -62,8 +62,6 @@ fn check(instructions: &Vec<Instruction>) -> (isize, isize) {
 
 fn main() {
     let mut instructions: Vec<_> = read_lines("./input8.txt")
-        .unwrap()
-        .map(Result::unwrap)
         .map(|s| Instruction::from_str(&s))
         .map(Result::unwrap)
         .collect();

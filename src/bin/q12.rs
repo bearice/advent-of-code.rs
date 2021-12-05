@@ -97,10 +97,7 @@ fn part2(lines: Vec<String>) {
     println!("{}", pos.0.abs() + pos.1.abs());
 }
 fn main() {
-    let lines: Vec<String> = read_lines("./input12.txt")
-        .unwrap()
-        .map(Result::unwrap)
-        .collect();
+    let lines: Vec<String> = read_lines("./input12.txt").collect();
     part1(lines.clone());
     part2(lines.clone());
 }

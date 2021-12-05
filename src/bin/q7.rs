@@ -69,8 +69,8 @@ fn search2(map: &BagMap, name: &String) -> usize {
 
 fn main() {
     let root = "shiny gold".to_owned();
-    let lines = read_lines("./input7.txt").unwrap();
-    let rules: BagMap = lines.map(|line| parse_line(&line.unwrap())).collect();
+    let lines = read_lines("./input7.txt");
+    let rules: BagMap = lines.map(|line| parse_line(&line)).collect();
     let mut rev_rules: BagMap = HashMap::new();
 
     for (k, v) in rules.iter() {

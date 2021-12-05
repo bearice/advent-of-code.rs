@@ -14,8 +14,7 @@ fn paths(n: usize) -> usize {
 
 fn main() {
     let mut numbers: Vec<usize> = read_lines("./input10.txt")
-        .unwrap()
-        .map(|x| x.unwrap().parse().unwrap())
+        .map(|x| x.parse().unwrap())
         .collect();
 
     numbers.push(0);

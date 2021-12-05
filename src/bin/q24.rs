@@ -102,11 +102,7 @@ fn mutation(v: Vec<Pos>) -> Vec<Pos> {
     ret
 }
 fn main() {
-    let mut tiles: Vec<_> = read_lines("./input24.txt")
-        .unwrap()
-        .map(Result::unwrap)
-        .map(parse_line)
-        .collect();
+    let mut tiles: Vec<_> = read_lines("./input24.txt").map(parse_line).collect();
 
     tiles.sort();
 

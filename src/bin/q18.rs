@@ -61,9 +61,6 @@ fn eval_tokens(v: &mut VecDeque<&str>) -> usize {
 }
 
 fn main() {
-    let n: usize = read_lines("./input18.txt")
-        .unwrap()
-        .map(|x| eval(x.unwrap()))
-        .sum();
+    let n: usize = read_lines("./input18.txt").map(|x| eval(x)).sum();
     println!("{}", n);
 }

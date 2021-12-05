@@ -1,4 +1,4 @@
-use std::ops::{Index, Not, Shl, Shr};
+use std::ops::{Not, Shl, Shr};
 
 use advent_of_code::common::read_lines;
 

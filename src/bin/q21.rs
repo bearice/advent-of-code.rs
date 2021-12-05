@@ -19,10 +19,7 @@ fn parse_line(line: String) -> (HashSet<String>, HashSet<String>) {
 }
 
 fn main() {
-    let lines: Vec<_> = read_lines("./input21.txt")
-        .unwrap()
-        .map(|x| parse_line(x.unwrap()))
-        .collect();
+    let lines: Vec<_> = read_lines("./input21.txt").map(parse_line).collect();
     // println!("{:?}", lines);
     let mut words: HashMap<String, HashSet<String>> = HashMap::new();
     for i in 0..lines.len() {

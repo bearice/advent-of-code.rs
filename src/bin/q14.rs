@@ -116,10 +116,7 @@ mod tests {
 }
 
 fn main() {
-    let lines: Vec<String> = read_lines("./input14.txt")
-        .unwrap()
-        .map(Result::unwrap)
-        .collect();
+    let lines: Vec<String> = read_lines("./input14.txt").collect();
     part1(lines.clone());
     part2(lines.clone());
 }
