@@ -1,24 +1,27 @@
 use advent_of_code::common::read_lines;
-use std::collections::HashSet;
 
 fn main() {
-    let lines = read_lines("./input6.txt");
-    let mut cnt = 0;
-    let mut buf: Option<HashSet<char>> = None;
-    for line in lines {
-        if line.len() > 0 {
-            let a = line.chars().collect();
-            if let Some(b) = buf {
-                buf = Some(b.intersection(&a).cloned().collect());
-            } else {
-                buf = Some(a);
-            }
-        } else {
-            let b = buf.unwrap_or_default();
-            println!("{}", b.len());
-            cnt += b.len();
-            buf = None;
+    let mut fishes = [0u64; 9];
+    read_lines("./input6.txt")
+        .next()
+        .unwrap()
+        .split(',')
+        .for_each(|s| fishes[s.parse::<usize>().unwrap()] += 1);
+
+    for x in 0..256 {
+        next_day(&mut fishes);
+        if x == 80 {
+            println!("day80={}", fishes.iter().sum::<u64>());
         }
     }
-    println!("{}", cnt);
+    println!("day256={}", fishes.iter().sum::<u64>());
+}
+
+fn next_day(fishes: &mut [u64; 9]) {
+    let new_fish = fishes[0];
+    for i in 1..=8 {
+        fishes[i - 1] = fishes[i];
+    }
+    fishes[6] += new_fish;
+    fishes[8] = new_fish;
 }
