@@ -1,28 +1,42 @@
 use advent_of_code::common::read_lines;
 fn main() {
-    let lines = read_lines("./input2.txt")
-        .map(|s| {
-            let (x, y) = s.split_once(' ').unwrap();
-            (x.to_owned(), y.parse::<i64>().unwrap())
-        })
+    let codes = read_lines("./input2.txt")
+        .next()
+        .unwrap()
+        .split(',')
+        .map(|x| x.parse::<u32>().unwrap())
         .collect::<Vec<_>>();
-    let answer1 = lines
-        .iter()
-        .fold((0, 0), |acc, (cmd, arg)| match cmd.as_str() {
-            "forward" => (acc.0 + arg, acc.1),
-            "up" => (acc.0, acc.1 - arg),
-            "down" => (acc.0, acc.1 + arg),
-            x => panic!("Invalid command: {}", x),
-        });
-    println!("a1={}", answer1.0 * answer1.1);
-
-    let answer2 = lines
-        .iter()
-        .fold((0, 0, 0), |acc, (cmd, arg)| match cmd.as_str() {
-            "forward" => (acc.0 + arg, acc.1 + (arg * acc.2), acc.2),
-            "up" => (acc.0, acc.1, acc.2 - arg),
-            "down" => (acc.0, acc.1, acc.2 + arg),
-            x => panic!("Invalid command: {}", x),
-        });
-    println!("a1={}", answer2.0 * answer2.1);
+    println!("{}", run_program(codes.clone(), 12, 2));
+    for noun in 0..100 {
+        for verb in 0..100 {
+            if run_program(codes.clone(), noun, verb) == 19690720 {
+                println!("{}", 100 * noun + verb);
+                return;
+            }
+        }
+    }
+}
+fn run_program(mut codes: Vec<u32>, noun: u32, verb: u32) -> u32 {
+    codes[1] = noun;
+    codes[2] = verb;
+    let mut pc = 0;
+    while codes[pc] != 99 {
+        match codes[pc] {
+            1 => {
+                let a = codes[codes[pc + 1] as usize];
+                let b = codes[codes[pc + 2] as usize];
+                let c = codes[pc + 3] as usize;
+                codes[c] = a + b;
+            }
+            2 => {
+                let a = codes[codes[pc + 1] as usize];
+                let b = codes[codes[pc + 2] as usize];
+                let c = codes[pc + 3] as usize;
+                codes[c] = a * b;
+            }
+            _ => panic!("Unknown opcode {}", codes[pc]),
+        }
+        pc += 4;
+    }
+    codes[0]
 }
