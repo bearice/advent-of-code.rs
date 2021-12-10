@@ -1,62 +1,35 @@
-use advent_of_code::common::ReadChunks;
+use advent_of_code::common::read_lines;
 
 fn main() {
-    let mut chunks = ReadChunks::new("./input4.txt");
-    let cards = chunks.next().unwrap();
-    let cards = cards[0]
-        .split(',')
-        .map(|x| x.parse().unwrap())
-        .collect::<Vec<u8>>();
-    let mut boards = chunks
-        .map(|lines| {
-            (
-                lines
-                    .into_iter()
-                    .map(|s| {
-                        s.split_ascii_whitespace()
-                            .map(|v| (v.parse().unwrap(), false))
-                            .collect::<Vec<(u8, bool)>>()
-                    })
-                    .collect::<Vec<_>>(),
-                false,
-            )
-        })
-        .collect::<Vec<_>>();
-    let mut score = vec![];
-    for n in cards {
-        for (board, won) in boards.iter_mut() {
-            if *won {
-                continue;
-            }
-            'next: for x in 0..5 {
-                for y in 0..5 {
-                    if board[x][y].0 == n {
-                        board[x][y].1 = true;
-                        if check_board(board, x, y) {
-                            score.push(score_board(board, n));
-                            *won = true;
-                        }
-                        break 'next;
-                    }
-                }
-            }
-        }
-    }
-    println!("first: {} last: {}", score[0], score[score.len() - 1]);
+    let (start, end): (u32, u32) = read_lines("./input4.txt")
+        .next()
+        .unwrap()
+        .split_once('-')
+        .map(|(a, b)| (a.parse().unwrap(), b.parse().unwrap()))
+        .unwrap();
+    let range = start..=end;
+
+    let pass = range.filter(check1).collect::<Vec<_>>();
+    println!("{}", pass.len());
+    let pass = pass.into_iter().filter(check2).collect::<Vec<_>>();
+    println!("{:?}", pass);
+    println!("{}", pass.len());
 }
 
-fn check_board(board: &[Vec<(u8, bool)>], x: usize, y: usize) -> bool {
-    board[x].iter().all(|(_, r)| *r) || board.iter().map(|b| b[y]).all(|(_, r)| r)
+fn check1(x: &u32) -> bool {
+    let x = x.to_string();
+    let chars = x.chars();
+    let mut two_chars = chars.zip(x.chars().skip(1));
+    two_chars.clone().any(|(a, b)| a == b) && two_chars.all(|(a, b)| a <= b)
 }
 
-fn score_board(board: &[Vec<(u8, bool)>], n: u8) -> u32 {
-    let mut ret = 0;
-    for line in board {
-        for cell in line {
-            if !cell.1 {
-                ret += cell.0 as u32;
-            }
+fn check2(x: &u32) -> bool {
+    let x = x.to_string();
+    for ch in x.chars() {
+        if x.matches(ch).count() == 2 {
+            // println!("x={} ch={}", x, ch);
+            return true;
         }
     }
-    ret * n as u32
+    false
 }
