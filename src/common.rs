@@ -10,6 +10,13 @@ where
     BufReader::new(file).lines().map(|lines| lines.unwrap())
 }
 
+pub fn read_u8_matrix(filename: &str) -> Vec<Vec<u8>> {
+    read_lines(filename)
+        .into_iter()
+        .map(|s| s.chars().map(|c| c as u8 - 48).collect::<Vec<_>>())
+        .collect::<Vec<_>>()
+}
+
 pub struct ReadChunks {
     buf: Vec<String>,
     lines: Box<dyn Iterator<Item = String>>,
