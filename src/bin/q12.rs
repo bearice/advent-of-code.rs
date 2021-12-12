@@ -14,10 +14,10 @@ fn main() {
             .or_insert_with(Vec::new)
             .push(a.to_owned());
     }
-    let paths = path_to_end("start", &adjs, HashMap::new(), filter1);
-    println!("{}", paths.len());
-    let paths = path_to_end("start", &adjs, HashMap::new(), filter2);
-    println!("{}", paths.len());
+    let paths = path_to_end("start", &adjs, &mut HashMap::new(), filter1);
+    println!("{}", paths);
+    let paths = path_to_end("start", &adjs, &mut HashMap::new(), filter2);
+    println!("{}", paths);
 }
 
 fn filter1(node: &str, visted: &HashMap<String, u32>) -> bool {
@@ -29,9 +29,9 @@ fn filter1(node: &str, visted: &HashMap<String, u32>) -> bool {
 fn filter2(node: &str, visited: &HashMap<String, u32>) -> bool {
     let count = visited.get(node);
     if node == "start" {
-        count.is_none()
+        count.map(|x| *x == 0).unwrap_or(true)
     } else if node.chars().all(char::is_lowercase) {
-        if count.is_some() {
+        if count.map(|x| *x > 0).unwrap_or(false) {
             !visited
                 .iter()
                 .any(|c| c.0.chars().all(char::is_lowercase) && *c.1 > 1)
@@ -46,27 +46,23 @@ fn filter2(node: &str, visited: &HashMap<String, u32>) -> bool {
 fn path_to_end<F>(
     start: &str,
     adjs: &HashMap<String, Vec<String>>,
-    mut visited: HashMap<String, u32>,
+    visited: &mut HashMap<String, u32>,
     filter: F,
-) -> Vec<Vec<String>>
+) -> u32
 where
     F: Fn(&str, &HashMap<String, u32>) -> bool + Copy,
 {
     if start == "end" {
-        return vec![vec![start.to_owned()]];
+        return 1;
     }
-    let mut paths = Vec::new();
-    if !filter(start, &visited) {
-        return vec![];
+    let mut paths = 0;
+    if !filter(start, visited) {
+        return 0;
     }
-    let count = visited.entry(start.to_owned()).or_insert(0);
-    *count += 1;
+    *visited.entry(start.to_owned()).or_insert(0) += 1;
     for adj in adjs.get(start).unwrap() {
-        let new_paths = path_to_end(adj, adjs, visited.clone(), filter);
-        for mut path in new_paths {
-            path.push(start.to_owned());
-            paths.push(path);
-        }
+        paths += path_to_end(adj, adjs, visited, filter);
     }
+    *visited.entry(start.to_owned()).or_insert(0) -= 1;
     paths
 }
