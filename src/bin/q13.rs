@@ -12,12 +12,11 @@ fn main() {
             let (x, y) = line.split_once(',').unwrap();
             (x.parse().unwrap(), y.parse().unwrap())
         })
-        .collect::<HashSet<(i32, i32)>>();
+        .collect();
+
     let ops = chunks.next().unwrap().into_iter().map(|line| {
         let (dir, pos) = line.split_once('=').unwrap();
-        let dir = dir.chars().last().unwrap();
-        let pos = pos.parse().unwrap();
-        (dir, pos)
+        (dir.chars().last().unwrap(), pos.parse().unwrap())
     });
 
     for (dir, pos) in ops {
@@ -26,10 +25,7 @@ fn main() {
             'y' => fold_y(map, pos),
             _ => panic!("Unknown direction"),
         };
-        // if i == 0 {
         println!("dir={} pos={} len={}", dir, pos, map.len());
-        //     return;
-        // }
     }
     print_map(map);
 }
@@ -62,7 +58,7 @@ fn print_map(v: HashSet<(i32, i32)>) {
             if v.contains(&(x, y)) {
                 print!("#");
             } else {
-                print!(".");
+                print!(" ");
             }
         }
         println!();
