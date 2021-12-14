@@ -1,75 +1,165 @@
-use std::{cmp::Reverse, collections::HashSet};
-
 use advent_of_code::common::read_lines;
 
 fn main() {
-    let numbers = read_lines("./input9.txt")
-        .map(|x| {
-            x.into_bytes()
-                .into_iter()
-                .map(|y| (y - 48) as u32)
-                .collect::<Vec<_>>()
-        })
+    let codes = read_lines("./input9.txt")
+        .next()
+        .unwrap()
+        .split(',')
+        .map(|x| x.parse::<i64>().unwrap())
         .collect::<Vec<_>>();
-    // let mut sum = 0;
-    let mut lowest = Vec::new();
-    for (y, row) in numbers.iter().enumerate() {
-        for (x, i) in row.iter().enumerate() {
-            let neighbors = neighbors(x, y, &numbers);
-            if neighbors.iter().all(|&n| n.0 > *i) {
-                lowest.push((*i, x, y));
-            }
-        }
-    }
-    println!("{}", lowest.iter().map(|&n| n.0 + 1).sum::<u32>());
-    let mut basins = Vec::new();
-    for p in lowest {
-        basins.push(find_basin(p, &numbers));
-    }
-    basins.sort_by_key(|x| Reverse(*x));
-    // println!("{:?}", basins);
-    println!("{}", basins[0] * basins[1] * basins[2]);
+    let mut program = Program::new(codes);
+    let x = program.clone().run_program(Some(1));
+    println!("{:?}", x);
+
+    let x = program.run_program(Some(2));
+    println!("{:?}", x);
 }
 
-fn find_basin((i, x, y): (u32, usize, usize), numbers: &[Vec<u32>]) -> usize {
-    let mut basin = HashSet::new();
-    let mut visited = HashSet::new();
-    let mut queue = vec![(i, x, y)];
-    while let Some(pos) = queue.pop() {
-        // println!("pos={:?}", pos);
-        if visited.contains(&pos) {
-            continue;
-        }
-        visited.insert(pos);
-        for n in neighbors(pos.1, pos.2, numbers) {
-            // println!("n={:?}", n);
-            if n.0 == 9 || n.0 < pos.0 {
-                continue;
-            }
-            if !visited.contains(&n) {
-                queue.push(n);
-            }
-            basin.insert(n);
-        }
-    }
-    // println!("basin={:?}", basin);
-    basin.len() + 1
+#[derive(Debug, PartialEq, Eq)]
+enum ProgramOutput {
+    Halt,
+    NeedInput,
+    Output(i64),
 }
 
-fn neighbors(x: usize, y: usize, numbers: &[Vec<u32>]) -> Vec<(u32, usize, usize)> {
-    let mut ret = Vec::new();
-    let mut push_number = |x: usize, y: usize| ret.push((numbers[y][x], x, y));
-    if x > 0 {
-        push_number(x - 1, y);
+#[derive(Clone)]
+struct Program {
+    codes: Vec<i64>,
+    pc: usize,
+    base: i64,
+}
+
+impl Program {
+    fn new(mut codes: Vec<i64>) -> Program {
+        codes.extend([0; 1000]);
+        Program {
+            codes,
+            pc: 0,
+            base: 0,
+        }
     }
-    if y > 0 {
-        push_number(x, y - 1);
+
+    fn run_program(&mut self, mut input: Option<i64>) -> ProgramOutput {
+        fn read_param(memory: &[i64], param: i64, mode: i64, base: i64) -> i64 {
+            // println!("param: {} mode:{}", param, mode);
+            match mode {
+                0 => memory[param as usize],
+                1 => param,
+                2 => memory[(base + param) as usize],
+                _ => panic!("Invalid mode"),
+            }
+        }
+        fn write_param(memory: &mut [i64], param: i64, mode: i64, base: i64, value: i64) {
+            // println!("param: {} mode:{}", param, mode);
+            match mode {
+                0 => memory[param as usize] = value,
+                2 => memory[(base + param) as usize] = value,
+                _ => panic!("Invalid mode"),
+            }
+        }
+        let codes = &mut self.codes;
+        let mut pc = self.pc;
+        while codes[pc] != 99 {
+            let opcode = codes[pc] % 100;
+            let mode = codes[pc] / 100;
+            // println!(
+            //     "pc={} raw={} opcode={} mode={} base={}",
+            //     pc, codes[pc], opcode, mode, self.base
+            // );
+            match opcode {
+                1 => {
+                    let a = read_param(codes, codes[pc + 1], mode % 10, self.base);
+                    let b = read_param(codes, codes[pc + 2], mode % 100 / 10, self.base);
+                    let c = codes[pc + 3];
+                    // println!("OP_ADD a={} b={} c={}", a, b, c);
+                    write_param(codes, c, mode % 1000 / 100, self.base, a + b);
+                    pc += 4;
+                }
+                2 => {
+                    let a = read_param(codes, codes[pc + 1], mode % 10, self.base);
+                    let b = read_param(codes, codes[pc + 2], mode % 100 / 10, self.base);
+                    let c = codes[pc + 3];
+                    // println!("OP_MUL a={} b={} c={}", a, b, c);
+                    write_param(codes, c, mode % 1000 / 100, self.base, a * b);
+                    pc += 4;
+                }
+                3 => {
+                    let a = codes[pc + 1];
+                    // println!("OP_IN a={}", a);
+                    if let Some(i) = input {
+                        write_param(codes, a, mode % 10, self.base, i);
+                        input = None;
+                    } else {
+                        return ProgramOutput::NeedInput;
+                    }
+                    pc += 2;
+                }
+                4 => {
+                    let a = read_param(codes, codes[pc + 1], mode % 10, self.base);
+                    // println!("OP_OUT a={}", a);
+                    pc += 2;
+                    self.pc = pc;
+                    return ProgramOutput::Output(a);
+                }
+                5 => {
+                    let a = read_param(codes, codes[pc + 1], mode % 10, self.base);
+                    let b = read_param(codes, codes[pc + 2], mode % 100 / 10, self.base);
+                    // println!("OP_JNZ a={} b={}", a, b);
+                    if a != 0 {
+                        pc = b as usize;
+                    } else {
+                        pc += 3;
+                    }
+                }
+                6 => {
+                    let a = read_param(codes, codes[pc + 1], mode % 10, self.base);
+                    let b = read_param(codes, codes[pc + 2], mode % 100 / 10, self.base);
+                    // println!("OP_JZ a={} b={}", a, b);
+                    if a == 0 {
+                        pc = b as usize;
+                    } else {
+                        pc += 3;
+                    }
+                }
+                7 => {
+                    let a = read_param(codes, codes[pc + 1], mode % 10, self.base);
+                    let b = read_param(codes, codes[pc + 2], mode % 100 / 10, self.base);
+                    let c = codes[pc + 3];
+                    // println!("OP_LT a={} b={} c={}", a, b, c);
+                    write_param(
+                        codes,
+                        c,
+                        mode % 1000 / 100,
+                        self.base,
+                        if a < b { 1 } else { 0 },
+                    );
+
+                    pc += 4;
+                }
+                8 => {
+                    let a = read_param(codes, codes[pc + 1], mode % 10, self.base);
+                    let b = read_param(codes, codes[pc + 2], mode % 100 / 10, self.base);
+                    let c = codes[pc + 3];
+                    // println!("OP_EQ a={} b={} c={}", a, b, c);
+                    write_param(
+                        codes,
+                        c,
+                        mode % 1000 / 100,
+                        self.base,
+                        if a == b { 1 } else { 0 },
+                    );
+                    pc += 4;
+                }
+                9 => {
+                    let a = read_param(codes, codes[pc + 1], mode % 10, self.base);
+                    // println!("OP_BASE a={}", a);
+                    self.base += a;
+                    pc += 2;
+                }
+                99 => break,
+                _ => panic!("Unknown opcode {}, pc={}", codes[pc], pc),
+            }
+        }
+        ProgramOutput::Halt
     }
-    if x < numbers[y].len() - 1 {
-        push_number(x + 1, y);
-    }
-    if y < numbers.len() - 1 {
-        push_number(x, y + 1);
-    }
-    ret
 }
