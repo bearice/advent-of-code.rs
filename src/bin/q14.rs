@@ -1,154 +1,72 @@
 use std::collections::HashMap;
 
-use advent_of_code::common::read_lines;
-use regex::Regex;
-#[macro_use]
-extern crate lazy_static;
-
-fn parse_mask1(line: String) -> (usize, usize) {
-    let s = &line[7..];
-    // println!("{}", s);
-    let s1 = s.replace("X", "0");
-    let n1 = usize::from_str_radix(&s1, 2).unwrap();
-    let s2 = s.replace("X", "1");
-    let n2 = usize::from_str_radix(&s2, 2).unwrap();
-    (n1, n2)
-}
-
-fn parse_mask2(line: String) -> (usize, usize) {
-    let s = &line[7..];
-    // println!("{}", s);
-    let s1 = s.replace("X", "0");
-    let n1 = usize::from_str_radix(&s1, 2).unwrap();
-    let s2 = s.replace("1", "0").replace("X", "1");
-    let n2 = usize::from_str_radix(&s2, 2).unwrap();
-    (n1, n2)
-}
-
-lazy_static! {
-    static ref RE: Regex = Regex::new(r"mem\[(\d+)\] = (\d+)").unwrap();
-}
-fn parse_mem1(line: String, mask: (usize, usize)) -> (usize, usize) {
-    let m = RE.captures(&line).unwrap();
-    // println!("{} {}", &m[1], &m[2]);
-    let addr = m[1].parse().unwrap();
-    let mut value = m[2].parse().unwrap();
-    value |= mask.0;
-    value &= mask.1;
-    (addr, value)
-}
-
-fn parse_mem2(line: String, mask: (usize, usize)) -> (Vec<usize>, usize) {
-    let m = RE.captures(&line).unwrap();
-    // println!("{} {}", &m[1], &m[2]);
-    let addr = m[1].parse().unwrap();
-    let value = m[2].parse().unwrap();
-    let addrs = mask_addr(addr, mask.1, mask.0);
-    (addrs, value)
-}
-
-fn mask_addr(addr: usize, mask: usize, mask2: usize) -> Vec<usize> {
-    // println!("mask={:b} mask2={:b}", mask, mask2);
-    if mask == 0 {
-        // println!("addr={:b}", addr | mask2);
-        vec![addr | mask2]
-    } else {
-        let tmask = 1 << mask.trailing_zeros();
-        // println!("tmask={:b}", !tmask);
-        let mask = mask & !tmask;
-        let mut ret = mask_addr(addr, mask, mask2);
-        let mut other = ret.clone();
-        for i in 0..ret.len() {
-            ret[i] &= !tmask;
-            other[i] |= tmask;
-        }
-        ret.append(&mut other);
-        ret
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn mask_addr() {
-        let mask = super::parse_mask2("mask = 000000000000000000000000000000X1001X".to_owned());
-        let mut ret = super::mask_addr(0b101010, mask.1, mask.0);
-        let mut tgt = vec![0b011010, 0b011011, 0b111010, 0b111011];
-        tgt.sort();
-        ret.sort();
-        assert_eq!(ret, tgt);
-    }
-
-    #[test]
-    fn parse_mask1() {
-        assert_eq!(
-            super::parse_mask1("mask = 1100X10X01001X111001X00010X00100X011".to_owned()),
-            (
-                0b110001000100101110010000100001000011,
-                0b110011010100111110011000101001001011
-            )
-        );
-    }
-    #[test]
-    fn parse_mask2() {
-        assert_eq!(
-            super::parse_mask2("mask = 000000000000000000000000000000X1001X".to_owned()),
-            (
-                0b000000000000000000000000000000010010,
-                0b000000000000000000000000000000100001
-            )
-        );
-    }
-    #[test]
-    fn parse_mem1() {
-        let mask = super::parse_mask1("mask = XXXXXXXXXXXXXXXXXXXXXXXXXXXXX1XXXX0X".to_owned());
-        assert_eq!(super::parse_mem1("mem[8] = 11".to_owned(), mask), (8, 73));
-        assert_eq!(super::parse_mem1("mem[1] = 101".to_owned(), mask), (1, 101));
-        assert_eq!(super::parse_mem1("mem[0] = 0".to_owned(), mask), (0, 64));
-    }
-    #[test]
-    fn parse_mem2() {
-        let mask = super::parse_mask2("mask = 000000000000000000000000000000X1001X".to_owned());
-        let mut ret = super::parse_mem2("mem[42] = 11".to_owned(), mask);
-        ret.0.sort();
-        assert_eq!(ret, (vec![26, 27, 58, 59], 11));
-    }
-}
+use advent_of_code::common::ReadChunks;
 
 fn main() {
-    let lines: Vec<String> = read_lines("./input14.txt").collect();
-    part1(lines.clone());
-    part2(lines.clone());
-}
+    let mut chunks = ReadChunks::new("input14.txt");
+    let template = chunks.next().unwrap();
+    let pairs = chunks.next().unwrap();
+    let chars = template[0].as_bytes();
+    let mut template =
+        chars
+            .iter()
+            .zip(chars.iter().skip(1))
+            .fold(HashMap::new(), |mut acc, (&a, &b)| {
+                *acc.entry((a, b)).or_insert(0) += 1;
+                acc
+            });
 
-fn part1(lines: Vec<String>) {
-    let mut mask = (0, 0);
-    let mut mem = HashMap::new();
-    for line in lines {
-        if line.starts_with("mask") {
-            mask = parse_mask1(line);
-        } else {
-            let (addr, value) = parse_mem1(line, mask);
-            mem.insert(addr, value);
+    // add markers of head and tail
+    template.insert((0, chars[0]), 1);
+    template.insert((chars[chars.len() - 1], 0), 1);
+
+    let pairs = pairs
+        .iter()
+        .map(|s| {
+            let s = s.as_bytes();
+            ((s[0], s[1]), s[6])
+        })
+        .collect();
+
+    for i in 1..=40 {
+        round(&mut template, &pairs);
+        if i == 10 || i == 40 {
+            println!("count[{}] = {}", i, count(&template));
         }
     }
-    let sum: usize = mem.values().sum();
-    println!("p1={}", sum);
 }
 
-fn part2(lines: Vec<String>) {
-    let mut mask = (0, 0);
-    let mut mem = HashMap::new();
-    for line in lines {
-        if line.starts_with("mask") {
-            mask = parse_mask2(line);
+fn count(template: &HashMap<(u8, u8), usize>) -> usize {
+    let mut count = template
+        .iter()
+        .fold(HashMap::new(), |mut acc, (&(c1, c2), &count)| {
+            *acc.entry(c1).or_insert(0) += count;
+            *acc.entry(c2).or_insert(0) += count;
+            acc
+        });
+
+    // remove head and tail markers
+    count.remove(&0);
+
+    // each char was counted twice, so divide by 2
+    count.iter_mut().for_each(|(_, v)| *v /= 2);
+
+    // println!("{:?}", count);
+    let max = count.iter().max_by_key(|&(_, &v)| v).unwrap();
+    let min = count.iter().min_by_key(|&(_, &v)| v).unwrap();
+    max.1 - min.1
+}
+
+fn round(template: &mut HashMap<(u8, u8), usize>, pairs: &HashMap<(u8, u8), u8>) {
+    let mut ret = HashMap::new();
+    for (&(a, b), &count) in template.iter() {
+        let c = pairs.get(&(a, b));
+        if let Some(&c) = c {
+            *ret.entry((a, c)).or_insert(0) += count;
+            *ret.entry((c, b)).or_insert(0) += count;
         } else {
-            let (addrs, value) = parse_mem2(line, mask);
-            for addr in addrs {
-                mem.insert(addr, value);
-            }
+            ret.insert((a, b), count);
         }
     }
-    let sum: usize = mem.values().sum();
-    println!("p2={}", sum);
+    *template = ret
 }
