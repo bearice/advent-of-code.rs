@@ -1,6 +1,6 @@
 use std::{cmp::Reverse, collections::BinaryHeap};
 
-use advent_of_code::common::read_u8_matrix;
+use advent_of_code::common::{adj_list, read_u8_matrix};
 
 fn main() {
     let map = read_u8_matrix("input15.txt");
@@ -61,21 +61,4 @@ fn shortest_path(nodes: &[Vec<u8>], start: (usize, usize), goal: (usize, usize))
         }
     }
     None
-}
-
-fn adj_list(pos: (usize, usize), max: (usize, usize)) -> Vec<(usize, usize)> {
-    let mut adj = vec![];
-    if pos.0 > 0 {
-        adj.push((pos.0 - 1, pos.1));
-    }
-    if pos.0 < max.0 - 1 {
-        adj.push((pos.0 + 1, pos.1));
-    }
-    if pos.1 > 0 {
-        adj.push((pos.0, pos.1 - 1));
-    }
-    if pos.1 < max.1 - 1 {
-        adj.push((pos.0, pos.1 + 1));
-    }
-    adj
 }
