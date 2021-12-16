@@ -13,5 +13,6 @@ regex="1.4"
 #pest_derive = "2"
 #pcre = "0.2.3"
 cached = "0.26"
+itertools = "0.10"
 
 [lib]

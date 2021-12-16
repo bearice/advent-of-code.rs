@@ -1,121 +1,163 @@
-use std::collections::{HashMap, HashSet};
+use std::ops::Shl;
 
-use advent_of_code::common::ReadChunks;
-use regex::Regex;
-
-#[derive(Debug)]
-struct Ranges {
-    name: String,
-    a: usize,
-    b: usize,
-    c: usize,
-    d: usize,
-}
-
-impl Ranges {
-    fn new(name: String, a: usize, b: usize, c: usize, d: usize) -> Self {
-        Self { name, a, b, c, d }
-    }
-    fn contains(&self, n: usize) -> bool {
-        (self.a <= n && self.b >= n) || (self.c <= n && self.d >= n)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn range_contains() {
-        let r = super::Ranges::new("test".to_owned(), 34, 100, 150, 200);
-        assert!(r.contains(35));
-        assert!(!r.contains(0));
-    }
-}
-
-fn parse_ranges(lines: Vec<String>) -> Vec<Ranges> {
-    let regex = Regex::new(r"([\w ]+): (\d+)-(\d+) or (\d+)-(\d+)").unwrap();
-    lines
-        .iter()
-        .map(|l| {
-            let m = regex.captures_iter(l).next().unwrap();
-            let name = m.get(1).unwrap().as_str();
-            let a = m[2].parse::<usize>().unwrap();
-            let b = m[3].parse::<usize>().unwrap();
-            let c = m[4].parse::<usize>().unwrap();
-            let d = m[5].parse::<usize>().unwrap();
-            Ranges::new(name.to_owned(), a, b, c, d)
-        })
-        .collect()
-}
-
-fn parse_tickets(mut lines: Vec<String>) -> Vec<Vec<usize>> {
-    lines.remove(0);
-    lines
-        .into_iter()
-        .map(|s| {
-            s.split(",")
-                .map(str::parse::<usize>)
-                .map(Result::unwrap)
-                .collect()
-        })
-        .collect()
-}
+use advent_of_code::common::read_lines;
+use itertools::Itertools;
 
 fn main() {
-    let mut chunks = ReadChunks::new("./input16.txt");
-    let ranges = parse_ranges(chunks.next().unwrap());
-    let my_tkt = parse_tickets(chunks.next().unwrap());
-    let tickets = parse_tickets(chunks.next().unwrap());
-    let mut x = 0;
-    // let mut valids = vec![];
-    let names: HashSet<_> = ranges.iter().map(|x| &x.name).collect();
-    let mut avail_names: Vec<_> = tickets[0].iter().map(|_| names.clone()).collect();
+    let input = read_lines("input16.txt").next().unwrap();
+    let bits = input.chars().flat_map(char_to_bits).collect_vec();
+    let root = parse_packet(&bits);
 
-    for i in 0..tickets.len() {
-        let mut c = 0;
-        let t = &tickets[i];
-        for j in 0..t.len() {
-            let n = t[j];
-            if !ranges.iter().any(|r| r.contains(n)) {
-                x += n;
+    println!("{}", ver_sum(&root));
+    println!("{}", eval(&root));
+}
+
+fn ver_sum(p: &Packet) -> usize {
+    p.v as usize
+        + p.sub
+            .as_ref()
+            .map(|v| v.iter().map(ver_sum).sum::<usize>())
+            .unwrap_or(0)
+}
+
+fn eval(p: &Packet) -> usize {
+    match p.t {
+        0 => p
+            .sub
+            .as_ref()
+            .map(|v| v.iter().map(eval).sum::<usize>())
+            .unwrap_or(p.val),
+        1 => p
+            .sub
+            .as_ref()
+            .map(|v| v.iter().map(eval).product::<usize>())
+            .unwrap_or(p.val),
+        2 => p
+            .sub
+            .as_ref()
+            .map(|v| v.iter().map(eval).min().unwrap())
+            .unwrap_or(p.val),
+        3 => p
+            .sub
+            .as_ref()
+            .map(|v| v.iter().map(eval).max().unwrap())
+            .unwrap_or(p.val),
+        4 => p.val,
+        5 => {
+            let a = &p.sub.as_ref().unwrap()[0];
+            let b = &p.sub.as_ref().unwrap()[1];
+            if eval(a) > eval(b) {
+                1
             } else {
-                c += 1;
+                0
             }
         }
-        if c == t.len() {
-            for j in 0..t.len() {
-                let n = t[j];
-                for r in ranges.iter() {
-                    // println!("{:?} {} {}", r, n, r.contains(n));
-                    if avail_names[j].contains(&r.name) && !r.contains(n) {
-                        // println!("{} removes {}", j, r.name);
-                        avail_names[j].remove(&r.name);
-                    }
-                }
+        6 => {
+            let a = &p.sub.as_ref().unwrap()[0];
+            let b = &p.sub.as_ref().unwrap()[1];
+            if eval(a) < eval(b) {
+                1
+            } else {
+                0
             }
         }
-    }
-    // This works, but looks very ugly :(
-    println!("{}", x);
-    let mut t: Vec<_> = avail_names.iter().enumerate().collect();
-    t.sort_by_key(|x| x.1.len());
-    let mut pos = HashMap::new();
-    let mut done = HashSet::new();
-    for i in 0..t.len() {
-        // println!("{} = {:?}", i, t[i]);
-        let d: HashSet<_> = t[i].1.difference(&done.clone()).cloned().collect();
-        if d.len() == 1 {
-            let name = d.iter().next().unwrap();
-            pos.insert(*name, t[i].0);
-            done.insert(*name);
+        7 => {
+            let a = &p.sub.as_ref().unwrap()[0];
+            let b = &p.sub.as_ref().unwrap()[1];
+            if eval(a) == eval(b) {
+                1
+            } else {
+                0
+            }
         }
+        _ => panic!("not possible"),
     }
-    println!("{:?}", pos);
-    let mut ret = 1;
-    let t = &my_tkt[0];
-    for p in pos.into_iter() {
-        if p.0.starts_with("departure") {
-            ret *= t[p.1];
+}
+#[derive(Debug)]
+struct Packet {
+    v: u8,
+    t: u8,
+    val: usize,
+    sub: Option<Vec<Packet>>,
+    siz: usize,
+}
+
+fn read_buf(bits: &[u8], mut cnt: usize) -> (Vec<Packet>, usize) {
+    let mut i = 0;
+    let mut ret = Vec::new();
+    while i + 6 < bits.len() && cnt > 0 {
+        let p = parse_packet(&bits[i..]);
+        i += p.siz;
+        cnt -= 1;
+        ret.push(p);
+    }
+    (ret, i)
+}
+
+fn parse_packet(bits: &[u8]) -> Packet {
+    let v = bits[0..3].iter().fold(0, |acc, &b| acc.shl(1) + b);
+    let t = bits[3..6].iter().fold(0, |acc, &b| acc.shl(1) + b);
+
+    let (val, sub, siz) = if t == 4 {
+        let (val, siz) = read_number(&bits[6..]);
+        (val, None, siz + 6)
+    } else if bits[6] == 0 {
+        let val = bits[7..22]
+            .iter()
+            .fold(0, |acc, &b| acc.shl(1) + b as usize);
+        let buf = &bits[22..22 + val];
+        let (sub, _) = read_buf(buf, usize::MAX);
+        (val, Some(sub), 22 + val)
+    } else {
+        let val = bits[7..18]
+            .iter()
+            .fold(0, |acc, &b| acc.shl(1) + b as usize);
+        let (sub, len) = read_buf(&bits[18..], val);
+        (val, Some(sub), 6 + 12 + len)
+    };
+
+    Packet {
+        v,
+        t,
+        val,
+        sub,
+        siz,
+    }
+}
+
+fn read_number(bits: &[u8]) -> (usize, usize) {
+    let mut ret = 0;
+    let mut i = 0;
+    while i < bits.len() {
+        ret = bits[i + 1..i + 5]
+            .iter()
+            .fold(ret, |acc, &b| acc.shl(1) + b as usize);
+        if bits[i] == 0 {
+            break;
         }
+        i += 5;
     }
-    println!("{}", ret);
+    (ret, i + 5)
+}
+
+fn char_to_bits(c: char) -> Vec<u8> {
+    match c {
+        '0' => vec![0, 0, 0, 0],
+        '1' => vec![0, 0, 0, 1],
+        '2' => vec![0, 0, 1, 0],
+        '3' => vec![0, 0, 1, 1],
+        '4' => vec![0, 1, 0, 0],
+        '5' => vec![0, 1, 0, 1],
+        '6' => vec![0, 1, 1, 0],
+        '7' => vec![0, 1, 1, 1],
+        '8' => vec![1, 0, 0, 0],
+        '9' => vec![1, 0, 0, 1],
+        'A' => vec![1, 0, 1, 0],
+        'B' => vec![1, 0, 1, 1],
+        'C' => vec![1, 1, 0, 0],
+        'D' => vec![1, 1, 0, 1],
+        'E' => vec![1, 1, 1, 0],
+        'F' => vec![1, 1, 1, 1],
+        _ => panic!("Invalid character"),
+    }
 }
