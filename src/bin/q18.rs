@@ -154,16 +154,10 @@ impl SnailFish {
         if let Self::Regular { n, lv } = self {
             if *n >= 10 {
                 let x = *n / 2;
-                let a = Self::Regular { lv: *lv + 1, n: x };
-                let b = Self::Regular {
-                    lv: *lv + 1,
-                    n: *n - x,
-                };
-                *self = Self::Pair {
-                    lv: *lv,
-                    a: Box::new(a),
-                    b: Box::new(b),
-                };
+                let y = *n - x;
+                let a = Self::Regular { lv: *lv + 1, n: x }.into();
+                let b = Self::Regular { lv: *lv + 1, n: y }.into();
+                *self = Self::Pair { lv: *lv, a, b };
                 true
             } else {
                 false
