@@ -68,3 +68,16 @@ pub fn adj_list(pos: (usize, usize), max: (usize, usize)) -> Vec<(usize, usize)>
     }
     adj
 }
+
+pub fn find_edge(points: impl IntoIterator<Item = (i32, i32)>) -> (i32, i32, i32, i32) {
+    points
+        .into_iter()
+        .fold((i32::MAX, i32::MIN, i32::MAX, i32::MIN), |acc, x| {
+            (
+                std::cmp::min(acc.0, x.0),
+                std::cmp::max(acc.1, x.0),
+                std::cmp::min(acc.2, x.1),
+                std::cmp::max(acc.3, x.1),
+            )
+        })
+}
