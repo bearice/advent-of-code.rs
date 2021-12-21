@@ -1,103 +1,111 @@
 use advent_of_code::common::read_lines;
+use itertools::Itertools;
 
-fn translate1(pos: &mut (isize, isize), dir: &mut isize, cmd: &str, num: isize) {
-    match cmd {
-        "N" => pos.1 += num,
-        "S" => pos.1 -= num,
-        "E" => pos.0 += num,
-        "W" => pos.0 -= num,
-        "F" => translate1(pos, dir, dir_to_cmd(*dir), num),
-        "R" => *dir = (*dir + num) % 360,
-        "L" => *dir = (*dir + 360 - num) % 360,
-        _ => panic!("not possible"),
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct Moon {
+    pos: [i32; 3],
+    vel: [i32; 3],
+}
+
+impl Moon {
+    fn from_str(s: String) -> Moon {
+        let vel = [0; 3];
+        let pos = s[1..s.len() - 1]
+            .split(", ")
+            .map(|s| s.split_once('=').unwrap().1.parse().unwrap())
+            .collect_vec();
+        let pos = [pos[0], pos[1], pos[2]];
+        Moon { pos, vel }
+    }
+    fn engry(&self) -> i32 {
+        self.pos.iter().map(|x| x.abs()).sum::<i32>()
+            * self.vel.iter().map(|x| x.abs()).sum::<i32>()
     }
 }
 
-fn translate2(pos: &mut (isize, isize), waypt: &mut (isize, isize), cmd: &str, num: isize) {
-    match cmd {
-        "N" => waypt.1 += num,
-        "S" => waypt.1 -= num,
-        "E" => waypt.0 += num,
-        "W" => waypt.0 -= num,
-        "F" => {
-            pos.0 += waypt.0 * num;
-            pos.1 += waypt.1 * num;
+fn tick(moons: &mut [Moon]) {
+    (0..moons.len()).tuple_combinations().for_each(|(m1, m2)| {
+        for i in 0..3 {
+            match moons[m1].pos[i].cmp(&moons[m2].pos[i]) {
+                std::cmp::Ordering::Less => {
+                    moons[m1].vel[i] += 1;
+                    moons[m2].vel[i] -= 1;
+                }
+                std::cmp::Ordering::Greater => {
+                    moons[m1].vel[i] -= 1;
+                    moons[m2].vel[i] += 1;
+                }
+                _ => {}
+            }
         }
-        "R" => redir_waypt(waypt, num),
-        "L" => redir_waypt(waypt, 360 - num),
-        _ => panic!("not possible"),
+    });
+    for moon in moons {
+        for i in 0..3 {
+            moon.pos[i] += moon.vel[i];
+        }
     }
 }
 
-fn dir_to_cmd(dir: isize) -> &'static str {
-    match dir {
-        0 => "N",
-        90 => "E",
-        180 => "S",
-        270 => "W",
-        _ => panic!("not possible"),
+fn q1(moons: Vec<Moon>) -> i32 {
+    let mut moons = moons;
+    for _ in 0..1000 {
+        tick(&mut moons);
+    }
+    moons.iter().map(|m| m.engry()).sum()
+}
+
+fn find_loop(n: Vec<i32>) -> usize {
+    // println!("{:?}", n);
+    let start = n.iter().map(|x| (*x, 0)).collect_vec();
+    let mut state = start.clone();
+    let mut cnt = 0;
+    while !(cnt > 0 && state == start) {
+        (0..n.len()).tuple_combinations().for_each(|(m1, m2)| {
+            match state[m1].0.cmp(&state[m2].0) {
+                std::cmp::Ordering::Less => {
+                    state[m1].1 += 1;
+                    state[m2].1 -= 1;
+                }
+                std::cmp::Ordering::Greater => {
+                    state[m1].1 -= 1;
+                    state[m2].1 += 1;
+                }
+                _ => {}
+            }
+        });
+        for i in &mut state {
+            i.0 += i.1;
+        }
+        cnt += 1;
+        // println!("{:?}", state);
+        // if cnt > 100 {
+        //     break;
+        // }
+    }
+    cnt
+}
+
+fn gcd(a: usize, b: usize) -> usize {
+    if b == 0 {
+        a
+    } else {
+        gcd(b, a % b)
     }
 }
 
-fn redir_waypt(pos: &mut (isize, isize), dir: isize) {
-    match dir {
-        0 => (),
-        90 => *pos = (pos.1, -pos.0),
-        180 => *pos = (-pos.0, -pos.1),
-        270 => *pos = (-pos.1, pos.0),
-        _ => panic!("not possible"),
-    }
+fn lcm(a: usize, b: usize) -> usize {
+    a * b / gcd(a, b)
 }
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn translate1() {
-        let mut pos = (0, 0);
-        let mut dir = 0;
-        super::translate1(&mut pos, &mut dir, "F", 10);
-        assert_eq!(pos, (0, 10));
-        assert_eq!(dir, 0);
-        super::translate1(&mut pos, &mut dir, "R", 90);
-        assert_eq!(pos, (0, 10));
-        assert_eq!(dir, 90);
-        super::translate1(&mut pos, &mut dir, "F", 10);
-        assert_eq!(pos, (10, 10));
-        assert_eq!(dir, 90);
-        super::translate1(&mut pos, &mut dir, "L", 180);
-        assert_eq!(pos, (10, 10));
-        assert_eq!(dir, 270);
-        super::translate1(&mut pos, &mut dir, "S", 10);
-        assert_eq!(pos, (10, 0));
-        assert_eq!(dir, 270);
-        super::translate1(&mut pos, &mut dir, "W", 10);
-        assert_eq!(pos, (0, 0));
-        assert_eq!(dir, 270);
+fn q2(moons: Vec<Moon>) -> usize {
+    let mut t = Vec::new();
+    for i in 0..3 {
+        t.push(find_loop(moons.iter().map(|m| m.pos[i]).collect_vec()));
     }
-}
-
-fn part1(lines: Vec<String>) {
-    let mut pos = (0, 0);
-    let mut dir = 90;
-    for line in lines {
-        let (cmd, num) = line.split_at(1);
-        let n = num.parse().unwrap();
-        translate1(&mut pos, &mut dir, cmd, n);
-    }
-    println!("{}", pos.0.abs() + pos.1.abs());
-}
-fn part2(lines: Vec<String>) {
-    let mut pos = (0, 0);
-    let mut waypt = (10, 1);
-    for line in lines {
-        let (cmd, num) = line.split_at(1);
-        let n = num.parse().unwrap();
-        translate2(&mut pos, &mut waypt, cmd, n);
-    }
-    println!("{}", pos.0.abs() + pos.1.abs());
+    t.into_iter().reduce(lcm).unwrap()
 }
 fn main() {
-    let lines: Vec<String> = read_lines("./input12.txt").collect();
-    part1(lines.clone());
-    part2(lines.clone());
+    let moons = read_lines("input12.txt").map(Moon::from_str).collect_vec();
+    println!("{:?}", q1(moons.clone()));
+    println!("{:?}", q2(moons));
 }
