@@ -1,67 +1,93 @@
-use std::collections::{HashMap, HashSet};
-
-use advent_of_code::common::read_lines;
-
-fn parse_line(line: String) -> (HashSet<String>, HashSet<String>) {
-    let mut ret = (HashSet::new(), HashSet::new());
-    let mut words = line.split_ascii_whitespace();
-    while let Some(word) = words.next() {
-        if word == "(contains" {
-            break;
-        } else {
-            ret.0.insert(word.to_owned());
-        }
+struct Dice {
+    n: usize,
+    cnt: usize,
+}
+impl Dice {
+    fn new() -> Self {
+        Dice { n: 0, cnt: 0 }
     }
-    while let Some(word) = words.next() {
-        ret.1.insert(word[..word.len() - 1].to_owned());
+    fn roll(&mut self) -> usize {
+        let ret = self.n + 1;
+        self.cnt += 1;
+        self.n += 1;
+        self.n %= 100;
+        ret
     }
-    ret
+    fn roll3(&mut self) -> usize {
+        self.roll() + self.roll() + self.roll()
+    }
 }
 
-fn main() {
-    let lines: Vec<_> = read_lines("./input21.txt").map(parse_line).collect();
-    // println!("{:?}", lines);
-    let mut words: HashMap<String, HashSet<String>> = HashMap::new();
-    for i in 0..lines.len() {
-        let l1 = &lines[i];
-        for w in l1.1.iter() {
-            if let Some(x) = words.get_mut(w) {
-                *x = x.intersection(&l1.0).cloned().collect();
-            } else {
-                words.insert(w.to_owned(), l1.0.clone());
-            }
+#[derive(Debug, Clone, Copy)]
+struct Player {
+    pos: usize,
+    score: usize,
+}
+impl Player {
+    fn new(pos: usize) -> Self {
+        Player {
+            pos: pos - 1,
+            score: 0,
         }
     }
-    let keys: Vec<String> = words.keys().cloned().collect();
-    let mut known_words = HashMap::new();
-    while known_words.len() < keys.len() {
-        for k in keys.iter() {
-            if let Some(w) = words.get_mut(k) {
-                if w.len() == 1 {
-                    known_words.insert(k.to_owned(), w.iter().cloned().next().unwrap());
+    fn play(&self, n: usize) -> Self {
+        let pos = (self.pos + n) % 10;
+        let score = self.score + pos + 1;
+        Player { pos, score }
+    }
+}
+
+fn q1(p1: Player, p2: Player) {
+    let mut players = [p1, p2];
+    let mut dice = Dice::new();
+
+    while players.iter().all(|p| p.score < 1000) {
+        for p in &mut players {
+            *p = p.play(dice.roll3());
+        }
+    }
+    let loser = players.iter().min_by_key(|p| p.score).unwrap();
+    println!("{}", loser.score * dice.cnt);
+}
+
+fn q2(p1: Player, p2: Player) {
+    let mut all_worlds = vec![(1usize, p1, p2)];
+    let mut won = Vec::new();
+    let dice_counts = [(3, 1), (4, 3), (5, 6), (6, 7), (7, 6), (8, 3), (9, 1)];
+
+    while !all_worlds.is_empty() {
+        let mut new_worlds = Vec::new();
+        for (w, p1, p2) in &all_worlds {
+            for &(n, worlds) in &dice_counts {
+                let p1 = p1.play(n);
+                let w = w * worlds;
+                if p1.score >= 21 {
+                    won.push((0, w));
                 } else {
-                    for kw in known_words.values() {
-                        w.remove(kw);
+                    for &(n2, worlds2) in &dice_counts {
+                        let w = w * worlds2;
+                        let p2 = p2.play(n2);
+                        if p2.score >= 21 {
+                            won.push((1, w));
+                        } else {
+                            new_worlds.push((w, p1, p2));
+                        }
                     }
                 }
             }
         }
+        all_worlds = new_worlds;
     }
-    // println!("{:?}", known_words);
-    let mut cnt = 0;
-    let kw: HashSet<_> = known_words.values().cloned().collect();
-    for line in lines {
-        cnt += line.0.difference(&kw).count();
+    let mut worlds = [0, 0];
+    for (id, w) in won {
+        worlds[id] += w;
     }
-    println!("{:?}", cnt);
+    println!("{:?}", worlds);
+}
 
-    let mut vw: Vec<_> = known_words.keys().collect();
-    vw.sort();
-
-    let mut ret = "".to_owned();
-    for w in vw {
-        ret += &known_words[w];
-        ret.push(',');
-    }
-    println!("{:?}", ret)
+fn main() {
+    let p1 = Player::new(5);
+    let p2 = Player::new(6);
+    q1(p1, p2);
+    q2(p1, p2);
 }
