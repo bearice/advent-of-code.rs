@@ -1,95 +1,129 @@
-use std::collections::{HashSet, VecDeque};
-
 use advent_of_code::common::read_lines;
+use itertools::Itertools;
 
-fn read_numbers(i: &mut dyn Iterator<Item = String>) -> VecDeque<usize> {
-    let mut ret = VecDeque::new();
-    while let Some(n) = i.next() {
-        if n == "" {
-            break;
-        }
-        if !n.starts_with("P") {
-            ret.push_back(n.parse::<usize>().unwrap());
-        }
-    }
-    ret
+#[derive(Debug, Clone, Copy, Default)]
+struct Range {
+    start: i64,
+    end: i64,
 }
 
-fn play1(mut p1: VecDeque<usize>, mut p2: VecDeque<usize>) -> VecDeque<usize> {
-    while p1.len() > 0 && p2.len() > 0 {
-        let n1 = p1.pop_front().unwrap();
-        let n2 = p2.pop_front().unwrap();
-        // println!("p1={:?} p2={:?} n1={} n2={}", p1.len(), p2.len(), n1, n2);
-        assert!(n1 != n2);
-        if n1 > n2 {
-            p1.push_back(n1);
-            p1.push_back(n2);
+impl Range {
+    fn overlap(&self, other: &Range) -> bool {
+        self.start <= other.end && other.start <= self.end
+    }
+    fn intersection(&self, other: &Range) -> Option<Range> {
+        if self.overlap(other) {
+            Some(Range {
+                start: self.start.max(other.start),
+                end: self.end.min(other.end),
+            })
         } else {
-            p2.push_back(n2);
-            p2.push_back(n1);
+            None
         }
     }
-    if p1.len() > 0 {
-        p1
-    } else {
-        p2
+    fn size(&self) -> i64 {
+        self.end - self.start + 1
     }
 }
 
-fn play2(mut p1: VecDeque<usize>, mut p2: VecDeque<usize>) -> (bool, VecDeque<usize>) {
-    let mut records = HashSet::new();
-    while p1.len() > 0 && p2.len() > 0 {
-        let n1 = p1.pop_front().unwrap();
-        let n2 = p2.pop_front().unwrap();
-        if !records.insert(p1.clone()) && !records.insert(p2.clone()) {
-            // println!("p1 wins early");
-            return (true, p1);
+impl From<(&str, &str)> for Range {
+    fn from((start, end): (&str, &str)) -> Self {
+        Range {
+            start: start.parse().unwrap(),
+            end: end.parse().unwrap(),
         }
-        let win = if n1 <= p1.len() && n2 <= p2.len() {
-            // println!("p1={:?} p2={:?} n1={} n2={}", p1.len(), p2.len(), n1, n2);
-            // println!("recursive play");
-            let mut x1 = p1.clone();
-            x1.resize(n1, 0);
-            let mut x2 = p2.clone();
-            x2.resize(n2, 0);
-            play2(x1, x2).0
-        } else {
-            n1 > n2
-        };
-        if win {
-            // println!("p1 wins");
-            p1.push_back(n1);
-            p1.push_back(n2);
-        } else {
-            // println!("p2 wins");
-            p2.push_back(n2);
-            p2.push_back(n1);
-        }
-    }
-    if p1.len() > 0 {
-        (true, p1)
-    } else {
-        (false, p2)
     }
 }
 
-fn score(winner: &VecDeque<usize>) -> usize {
-    println!("{:?}", winner);
-    let len = winner.len();
-    winner
-        .iter()
-        .enumerate()
-        .fold(0, |acc, x| acc + (len - x.0) * *x.1)
+impl From<(i64, i64)> for Range {
+    fn from((start, end): (i64, i64)) -> Self {
+        Range { start, end }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+struct Box {
+    x: Range,
+    y: Range,
+    z: Range,
+    vacuums: Vec<Box>,
+}
+impl Box {
+    fn new(x: Range, y: Range, z: Range) -> Self {
+        Box {
+            x,
+            y,
+            z,
+            vacuums: Vec::new(),
+        }
+    }
+    fn from_string(str: String) -> (bool, Self) {
+        let on = str.split_once(' ').unwrap();
+        let mut ranges =
+            on.1.split(',')
+                .map(|x| x.split_once('=').unwrap().1)
+                .map(|s| s.split_once("..").unwrap().into());
+
+        let x = ranges.next().unwrap();
+        let y = ranges.next().unwrap();
+        let z = ranges.next().unwrap();
+        let on = on.0 == "on";
+        (on, Self::new(x, y, z))
+    }
+    fn overlap(&self, other: &Box) -> bool {
+        self.x.overlap(&other.x) && self.y.overlap(&other.y) && self.z.overlap(&other.z)
+    }
+    fn intersection(&self, other: &Box) -> Option<Box> {
+        let x = self.x.intersection(&other.x);
+        let y = self.y.intersection(&other.y);
+        let z = self.z.intersection(&other.z);
+        if x.is_none() || y.is_none() || z.is_none() {
+            return None;
+        }
+        Some(Box::new(x.unwrap(), y.unwrap(), z.unwrap()))
+    }
+    fn size(&self) -> i64 {
+        self.x.size() * self.y.size() * self.z.size()
+            - self.vacuums.iter().map(Box::size).sum::<i64>()
+    }
+    fn remove(&mut self, other: &Box) {
+        let shaved = self.intersection(other);
+        if shaved.is_none() {
+            return;
+        }
+        let shaved = shaved.unwrap();
+        for vacuum in &mut self.vacuums {
+            vacuum.remove(&shaved);
+        }
+        self.vacuums.push(shaved)
+    }
 }
 
 fn main() {
-    let mut lines = read_lines("./input22.txt");
-    let p1 = read_numbers(&mut lines);
-    let p2 = read_numbers(&mut lines);
+    let boxes = read_lines("input22.txt")
+        .map(Box::from_string)
+        .collect_vec();
 
-    let winner1 = play1(p1.clone(), p2.clone());
-    println!("{}", score(&winner1));
+    let bound = Box::new((-50, 50).into(), (-50, 50).into(), (-50, 50).into());
+    let boxes1 = boxes
+        .iter()
+        .filter(|x| x.1.overlap(&bound))
+        .cloned()
+        .collect_vec();
+    let size1 = size_of(&boxes1);
+    println!("{}", size1);
+    println!("{}", size_of(&boxes));
+}
 
-    let (_, winner2) = play2(p1.clone(), p2.clone());
-    println!("{}", score(&winner2));
+fn size_of(input: &[(bool, Box)]) -> i64 {
+    let mut boxes: Vec<Box> = Vec::new();
+    for (on, b) in input {
+        for a in boxes.iter_mut() {
+            a.remove(b);
+        }
+        if *on {
+            boxes.push(b.clone());
+        }
+    }
+    boxes.iter().map(Box::size).sum::<i64>()
 }
