@@ -218,3 +218,35 @@ pub fn find_edge(points: impl IntoIterator<Item = (i32, i32)>) -> (i32, i32, i32
             )
         })
 }
+
+pub fn shortest_path<T, F>(start: T, end: T, edges: F) -> Option<usize>
+where
+    T: std::hash::Hash + Eq + Clone + Copy + Ord,
+    F: Fn(&T) -> Vec<(T, usize)>,
+{
+    use std::cmp::Reverse;
+    use std::collections::{BinaryHeap, HashMap};
+    let mut dist: HashMap<T, usize> = HashMap::new();
+    let mut heap = BinaryHeap::new();
+
+    dist.insert(start, 0);
+    heap.push(Reverse((0, start)));
+
+    while let Some(Reverse((cost, pos))) = heap.pop() {
+        if pos == end {
+            return Some(cost);
+        }
+        if cost > dist[&pos] {
+            continue;
+        }
+        for (edge, new_cost) in edges(&pos) {
+            let new_cost = cost + new_cost;
+            let d = dist.entry(edge).or_insert(usize::MAX);
+            if new_cost < *d {
+                heap.push(Reverse((new_cost, edge)));
+                *d = new_cost;
+            }
+        }
+    }
+    None
+}

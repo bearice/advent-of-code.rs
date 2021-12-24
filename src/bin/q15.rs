@@ -1,9 +1,6 @@
-use std::{
-    cmp::Reverse,
-    collections::{BinaryHeap, HashMap},
-};
+use std::collections::HashMap;
 
-use advent_of_code::common::{find_edge, Program, ProgramOutput};
+use advent_of_code::common::{find_edge, shortest_path, Program, ProgramOutput};
 
 fn main() {
     let mut code = Program::from_file("input15.txt");
@@ -138,34 +135,4 @@ fn adj(map: &HashMap<(i32, i32), i32>, pos: (i32, i32)) -> Vec<((i32, i32), usiz
         }
     }
     adj
-}
-
-fn shortest_path<T, F>(start: T, end: T, edges: F) -> Option<usize>
-where
-    T: std::hash::Hash + Eq + Clone + Copy + Ord,
-    F: Fn(&T) -> Vec<(T, usize)>,
-{
-    let mut dist: HashMap<T, usize> = HashMap::new();
-    let mut heap = BinaryHeap::new();
-
-    dist.insert(start, 0);
-    heap.push(Reverse((0, start)));
-
-    while let Some(Reverse((cost, pos))) = heap.pop() {
-        if pos == end {
-            return Some(cost);
-        }
-        if cost > dist[&pos] {
-            continue;
-        }
-        for (edge, new_cost) in edges(&pos) {
-            let new_cost = cost + new_cost;
-            let d = dist.entry(edge).or_insert(usize::MAX);
-            if new_cost < *d {
-                heap.push(Reverse((new_cost, edge)));
-                *d = new_cost;
-            }
-        }
-    }
-    None
 }
