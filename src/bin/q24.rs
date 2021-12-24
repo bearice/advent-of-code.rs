@@ -1,133 +1,194 @@
-use std::collections::HashMap;
+use std::collections::HashSet;
 
 use advent_of_code::common::read_lines;
 
-type Pos = (i32, i32);
-
-fn parse_line(line: String) -> Pos {
-    let mut ret = (0, 0);
-    // println!("{}", line);
-    let mut i = line.chars();
-    while let Some(c) = i.next() {
-        let mut d = "".to_owned();
-        d.push(c);
-        let odd = ret.1 % 2 == 0;
-        match c {
-            'e' => ret.0 += 1,
-            'w' => ret.0 -= 1,
-            'n' => ret.1 += 1,
-            's' => ret.1 -= 1,
-            _ => panic!("not possible"),
+type State = [i64; 5];
+trait AsRegId {
+    fn as_reg_id(&self) -> usize;
+    fn as_reg_or_val(&self) -> RegOrVal;
+}
+impl AsRegId for &str {
+    fn as_reg_id(&self) -> usize {
+        match *self {
+            "x" => 1,
+            "y" => 2,
+            "z" => 3,
+            "w" => 4,
+            _ => panic!("Invalid register name"),
         }
-        if c == 'n' || c == 's' {
-            let c = i.next().unwrap();
-            d.push(c);
-            match c {
-                'e' => {
-                    if odd {
-                        ret.0 += 1
-                    }
-                }
-                'w' => {
-                    if !odd {
-                        ret.0 -= 1
-                    }
-                }
-                _ => panic!("not possible"),
+    }
+    fn as_reg_or_val(&self) -> RegOrVal {
+        match self.parse::<i64>() {
+            Ok(v) => RegOrVal::Val(v),
+            Err(_) => RegOrVal::Reg(self.as_reg_id()),
+        }
+    }
+}
+#[derive(Debug)]
+enum RegOrVal {
+    Reg(usize),
+    Val(i64),
+}
+impl RegOrVal {
+    fn get_val(&self, state: &State) -> i64 {
+        match self {
+            RegOrVal::Reg(reg) => state[*reg],
+            RegOrVal::Val(val) => *val,
+        }
+    }
+}
+/*
+inp a - Read an input value and write it to variable a.
+add a b - Add the value of a to the value of b, then store the result in variable a.
+mul a b - Multiply the value of a by the value of b, then store the result in variable a.
+div a b - Divide the value of a by the value of b, truncate the result to an integer, then store the result in variable a. (Here, "truncate" means to round the value toward zero.)
+mod a b - Divide the value of a by the value of b, then store the remainder in variable a. (This is also called the modulo operation.)
+eql a b - If the value of a and b are equal, then store the value 1 in variable a. Otherwise, store the value 0 in variable a.
+ */
+#[derive(Debug)]
+enum OpCode {
+    Inp(usize),
+    Add(usize, RegOrVal),
+    Mul(usize, RegOrVal),
+    Div(usize, RegOrVal),
+    Mod(usize, RegOrVal),
+    Eql(usize, RegOrVal),
+}
+
+impl OpCode {
+    fn from_str(line: &str) -> Self {
+        let mut parts = line.split_whitespace();
+        let op = parts.next().unwrap();
+        let a = parts.next().unwrap().as_reg_id();
+        if op == "inp" {
+            return OpCode::Inp(a);
+        }
+        let b = parts.next().unwrap().as_reg_or_val();
+        match op {
+            "add" => OpCode::Add(a, b),
+            "mul" => OpCode::Mul(a, b),
+            "div" => OpCode::Div(a, b),
+            "mod" => OpCode::Mod(a, b),
+            "eql" => OpCode::Eql(a, b),
+            _ => panic!("Invalid opcode"),
+        }
+    }
+    fn exec(&self, state: &mut State) {
+        // println!("op:{:?} st:{:?}", self, state);
+        match self {
+            OpCode::Inp(reg) => {
+                state[*reg] = state[0];
+            }
+            OpCode::Add(reg, val) => {
+                state[*reg] += val.get_val(state);
+            }
+            OpCode::Mul(reg, val) => {
+                state[*reg] *= val.get_val(state);
+            }
+            OpCode::Div(reg, val) => {
+                state[*reg] /= val.get_val(state);
+            }
+            OpCode::Mod(reg, val) => {
+                state[*reg] %= val.get_val(state);
+            }
+            OpCode::Eql(reg, val) => {
+                state[*reg] = if val.get_val(state) == state[*reg] {
+                    1
+                } else {
+                    0
+                };
             }
         }
-        // println!("{} {:?}", d, ret);
-    }
-    ret
-}
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn parse_line() {
-        assert_eq!(super::parse_line("eeww".to_owned()), (0, 0));
-        assert_eq!(super::parse_line("nwwswee".to_owned()), (0, 0));
-        assert_eq!(super::parse_line("esew".to_owned()), (1, -1));
     }
 }
 
-fn adjacent(pos: Pos) -> Vec<Pos> {
-    let (x, y) = pos;
-    if y % 2 == 0 {
-        vec![
-            (x + 1, y),
-            (x - 1, y),
-            (x, y + 1),
-            (x + 1, y + 1),
-            (x, y - 1),
-            (x + 1, y - 1),
-        ]
-    } else {
-        vec![
-            (x + 1, y),
-            (x - 1, y),
-            (x, y + 1),
-            (x - 1, y + 1),
-            (x, y - 1),
-            (x - 1, y - 1),
-        ]
-    }
+struct Block {
+    id: usize,
+    code: Vec<OpCode>,
 }
 
-fn mutation(v: Vec<Pos>) -> Vec<Pos> {
-    let mut blacks: HashMap<Pos, i32> = v.clone().into_iter().zip(std::iter::repeat(0)).collect();
-    let mut whites = HashMap::new();
-    for p in v {
-        let adjs = adjacent(p);
-        for a in adjs.into_iter() {
-            if let Some(i) = blacks.get_mut(&a) {
-                *i += 1;
-            } else if let Some(i) = whites.get_mut(&a) {
-                *i += 1;
-            } else {
-                whites.insert(a, 1);
-            }
+impl Block {
+    fn new(id: usize) -> Self {
+        Block {
+            id,
+            code: Vec::new(),
         }
     }
-    let mut ret = vec![];
-    for (k, v) in blacks.into_iter() {
-        if v == 1 || v == 2 {
-            ret.push(k);
-        }
-    }
-    for (k, v) in whites.into_iter() {
-        if v == 2 {
-            ret.push(k);
-        }
-    }
-    ret
-}
-fn main() {
-    let mut tiles: Vec<_> = read_lines("./input24.txt").map(parse_line).collect();
-
-    tiles.sort();
-
-    // println!("{:?}", tiles);
-    let mut last = (tiles[0], 1);
-    let mut blacks = Vec::new();
-    for i in 1..tiles.len() {
-        let t = tiles[i];
-        if t == last.0 {
-            last.1 += 1;
+    fn add_opcode(&mut self, line: &str) -> bool {
+        if line.starts_with("inp") && !self.code.is_empty() {
+            false
         } else {
-            // println!("{:?}", last);
-            if last.1 % 2 == 1 {
-                blacks.push(last.0);
-            }
-            last = (t, 1);
+            let opcode = OpCode::from_str(line);
+            self.code.push(opcode);
+            true
         }
     }
-    if last.1 % 2 == 1 {
-        blacks.push(last.0);
+    fn run(&self, input: i64, prev_z: i64) -> i64 {
+        let mut state = [input, 0, 0, prev_z, 0];
+        for opcode in &self.code {
+            opcode.exec(&mut state);
+        }
+        let z = state[3];
+        if self.id == 0 {
+            println!("block: {} input: {} => z: {}", self.id, input, z);
+        }
+        z
     }
-    println!("{}", blacks.len());
+}
 
-    for i in 0..100 {
-        blacks = mutation(blacks);
-        println!("{} {}", i + 1, blacks.len());
+fn search_one(
+    cache: &mut HashSet<(usize, i64)>,
+    blocks: &[Block],
+    input: &[[i64; 9]],
+    z: i64,
+) -> Option<Vec<i64>> {
+    if cache.contains(&(blocks[0].id, z)) {
+        return None;
     }
+    for i in input[0] {
+        let new_z = blocks[0].run(i, z);
+        if blocks.len() == 1 {
+            if new_z == 0 {
+                return Some(vec![i]);
+            }
+        } else if let Some(mut found) = search_one(cache, &blocks[1..], &input[1..], new_z) {
+            found.push(i);
+            return Some(found);
+        }
+    }
+    cache.insert((blocks[0].id, z));
+    None
+}
+fn search_first(cache: &mut HashSet<(usize, i64)>, blocks: &[Block], input: &[i64; 9]) -> Vec<i64> {
+    let inputs = (0..blocks.len()).map(|_| *input).collect::<Vec<_>>();
+    let ret = search_one(cache, blocks, &inputs, 0);
+    ret.unwrap()
+}
+
+fn main() {
+    let lines = read_lines("input24.txt");
+    let mut blocks = Vec::new();
+    let mut current_block = Block::new(0);
+    for line in lines {
+        if !current_block.add_opcode(&line) {
+            blocks.push(current_block);
+            current_block = Block::new(blocks.len());
+            current_block.add_opcode(&line);
+        }
+    }
+    blocks.push(current_block);
+
+    let mut cache = HashSet::new();
+    let max: String = search_first(&mut cache, &blocks, &[9, 8, 7, 6, 5, 4, 3, 2, 1])
+        .iter()
+        .map(ToString::to_string)
+        .rev()
+        .collect();
+    println!("max: {}", max);
+    let min: String = search_first(&mut cache, &blocks, &[1, 2, 3, 4, 5, 6, 7, 8, 9])
+        .iter()
+        .map(ToString::to_string)
+        .rev()
+        .collect();
+    println!("max: {} min: {} ", max, min);
 }
