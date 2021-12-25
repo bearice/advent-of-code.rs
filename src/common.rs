@@ -71,7 +71,7 @@ impl Program {
         )
     }
     pub fn new(mut codes: Vec<i64>) -> Program {
-        codes.extend([0; 1000]);
+        codes.extend([0; 5000]);
         Program {
             codes,
             pc: 0,
