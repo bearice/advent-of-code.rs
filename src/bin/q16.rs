@@ -1,121 +1,72 @@
-use std::collections::{HashMap, HashSet};
+use advent_of_code::common::read_lines;
+use itertools::Itertools;
 
-use advent_of_code::common::ReadChunks;
-use regex::Regex;
-
-#[derive(Debug)]
-struct Ranges {
-    name: String,
-    a: usize,
-    b: usize,
-    c: usize,
-    d: usize,
-}
-
-impl Ranges {
-    fn new(name: String, a: usize, b: usize, c: usize, d: usize) -> Self {
-        Self { name, a, b, c, d }
+fn pattern_for(n: usize) -> impl Iterator<Item = i8> {
+    struct Iter {
+        repeats: usize,
+        idx: usize,
     }
-    fn contains(&self, n: usize) -> bool {
-        (self.a <= n && self.b >= n) || (self.c <= n && self.d >= n)
+    impl Iterator for Iter {
+        type Item = i8;
+        fn next(&mut self) -> Option<Self::Item> {
+            const PATTERN: [i8; 4] = [0, 1, 0, -1];
+            self.idx += 1;
+            Some(PATTERN[self.idx / self.repeats % PATTERN.len()])
+        }
     }
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn range_contains() {
-        let r = super::Ranges::new("test".to_owned(), 34, 100, 150, 200);
-        assert!(r.contains(35));
-        assert!(!r.contains(0));
+    Iter {
+        repeats: n + 1,
+        idx: 0,
     }
 }
 
-fn parse_ranges(lines: Vec<String>) -> Vec<Ranges> {
-    let regex = Regex::new(r"([\w ]+): (\d+)-(\d+) or (\d+)-(\d+)").unwrap();
-    lines
-        .iter()
-        .map(|l| {
-            let m = regex.captures_iter(l).next().unwrap();
-            let name = m.get(1).unwrap().as_str();
-            let a = m[2].parse::<usize>().unwrap();
-            let b = m[3].parse::<usize>().unwrap();
-            let c = m[4].parse::<usize>().unwrap();
-            let d = m[5].parse::<usize>().unwrap();
-            Ranges::new(name.to_owned(), a, b, c, d)
+fn fft(input: &[i8]) -> Vec<i8> {
+    (0..input.len())
+        .map(|i| {
+            (input
+                .iter()
+                .zip(pattern_for(i))
+                .map(|(&a, b)| a as i32 * b as i32)
+                .sum::<i32>()
+                .abs()
+                % 10) as i8
         })
         .collect()
 }
 
-fn parse_tickets(mut lines: Vec<String>) -> Vec<Vec<usize>> {
-    lines.remove(0);
-    lines
-        .into_iter()
-        .map(|s| {
-            s.split(",")
-                .map(str::parse::<usize>)
-                .map(Result::unwrap)
-                .collect()
-        })
-        .collect()
+fn fft_tail(input: &[i8]) -> Vec<i8> {
+    let mut output = vec![0; input.len()];
+    let mut sum = 0;
+    for i in 0..input.len() {
+        let i = input.len() - 1 - i;
+        let n = input[i] as i32;
+        sum += n;
+        output[i] = (sum % 10) as i8;
+    }
+    output
 }
 
 fn main() {
-    let mut chunks = ReadChunks::new("./input16.txt");
-    let ranges = parse_ranges(chunks.next().unwrap());
-    let my_tkt = parse_tickets(chunks.next().unwrap());
-    let tickets = parse_tickets(chunks.next().unwrap());
-    let mut x = 0;
-    // let mut valids = vec![];
-    let names: HashSet<_> = ranges.iter().map(|x| &x.name).collect();
-    let mut avail_names: Vec<_> = tickets[0].iter().map(|_| names.clone()).collect();
+    let line = read_lines("input16.txt")
+        .next()
+        .unwrap()
+        .chars()
+        .map(|x| x as i8 - 48)
+        .collect_vec();
 
-    for i in 0..tickets.len() {
-        let mut c = 0;
-        let t = &tickets[i];
-        for j in 0..t.len() {
-            let n = t[j];
-            if !ranges.iter().any(|r| r.contains(n)) {
-                x += n;
-            } else {
-                c += 1;
-            }
+    {
+        let mut line = line.clone();
+        for _ in 0..100 {
+            line = fft(&line);
         }
-        if c == t.len() {
-            for j in 0..t.len() {
-                let n = t[j];
-                for r in ranges.iter() {
-                    // println!("{:?} {} {}", r, n, r.contains(n));
-                    if avail_names[j].contains(&r.name) && !r.contains(n) {
-                        // println!("{} removes {}", j, r.name);
-                        avail_names[j].remove(&r.name);
-                    }
-                }
-            }
-        }
+        println!("{:?}", &line[0..8].iter().map(ToString::to_string).join(""));
     }
-    // This works, but looks very ugly :(
-    println!("{}", x);
-    let mut t: Vec<_> = avail_names.iter().enumerate().collect();
-    t.sort_by_key(|x| x.1.len());
-    let mut pos = HashMap::new();
-    let mut done = HashSet::new();
-    for i in 0..t.len() {
-        // println!("{} = {:?}", i, t[i]);
-        let d: HashSet<_> = t[i].1.difference(&done.clone()).cloned().collect();
-        if d.len() == 1 {
-            let name = d.iter().next().unwrap();
-            pos.insert(*name, t[i].0);
-            done.insert(*name);
+    {
+        let offset = line[0..7].iter().fold(0, |acc, &x| acc * 10 + x as usize);
+        let mut tail = line.repeat(10000)[offset..].to_vec();
+        for _ in 0..100 {
+            tail = fft_tail(&tail);
         }
+        println!("{:?}", &tail[0..8].iter().map(ToString::to_string).join(""));
     }
-    println!("{:?}", pos);
-    let mut ret = 1;
-    let t = &my_tkt[0];
-    for p in pos.into_iter() {
-        if p.0.starts_with("departure") {
-            ret *= t[p.1];
-        }
-    }
-    println!("{}", ret);
 }
