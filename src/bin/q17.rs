@@ -47,16 +47,8 @@ fn main() {
     let mut instructions = vec![];
     let mut dir = 0;
     while let Some(step) = find_next_step(&mut image, &mut corssings, &mut robot, &mut dir) {
-        // println!("{:?}", step);
-        // println!("pos: {:?}", robot);
-        // image[robot.1][robot.0] = 'R';
-        // for row in &image {
-        //     println!("{}", row.iter().collect::<String>());
-        // }
         instructions.push(step);
     }
-    // println!("{:?}", instructions);
-    // println!("final pos: {:?}", robot);
 
     let cmds = find_cmds(&instructions);
     let cmd = cmds.join("\n") + "\nn\n";
@@ -66,10 +58,10 @@ fn main() {
     loop {
         match code.run_program(input) {
             ProgramOutput::Output(x) => {
-                if x < 128 {
-                    print!("{}", (x as u8) as char);
-                } else {
+                if x > 128 {
                     println!("{}", x);
+                    // } else {
+                    //     print!("{}", (x as u8) as char);
                 }
                 input = None;
             }
@@ -82,70 +74,57 @@ fn main() {
 }
 
 fn find_cmds(instructions: &[String]) -> [String; 4] {
-    let mut func = [&instructions[0..]; 3];
-    let mut main = None;
-    'found: for l1 in 1..instructions.len() {
-        func[0] = &instructions[0..l1];
-        let mut next1 = &instructions[l1..];
-        let mut main1 = vec!["A"];
+    fn find_matches<'a>(
+        input: &'a [String],
+        patterns: &[&[String]],
+    ) -> (&'a [String], Vec<&'static str>) {
+        let mut remains = input;
+        let mut matches = vec![];
         loop {
-            if next1.starts_with(func[0]) {
-                next1 = &next1[func[0].len()..];
-                main1.push("A");
-            } else {
+            let mut found = false;
+            for (n, &patterns) in patterns.iter().enumerate() {
+                let name = ["A", "B", "C"][n];
+                if remains.starts_with(patterns) {
+                    matches.push(name);
+                    remains = &remains[patterns.len()..];
+                    found = true;
+                }
+            }
+            if !found {
                 break;
             }
         }
-        for l2 in 1..next1.len() {
-            func[1] = &next1[0..l2];
-            if func[1].join(",").len() >= 20 {
-                break;
-            }
-            let mut next2 = &next1[l2..];
-            let mut main2 = main1.clone();
-            main2.push("B");
-            loop {
-                if next2.starts_with(func[1]) {
-                    next2 = &next2[func[1].len()..];
-                    main2.push("B");
-                } else if next2.starts_with(func[0]) {
-                    next2 = &next2[func[0].len()..];
-                    main2.push("A");
-                } else {
-                    break;
-                }
-            }
-            for l3 in 1..next2.len() {
-                func[2] = &next2[0..l3];
-                if func[2].join(",").len() >= 20 {
-                    break;
-                }
-                let mut next3 = &next2[l3..];
-                let mut main3 = main2.clone();
-                main3.push("C");
-                loop {
-                    if next3.starts_with(func[2]) {
-                        next3 = &next3[func[2].len()..];
-                        main3.push("C");
-                    } else if next3.starts_with(func[1]) {
-                        next3 = &next3[func[1].len()..];
-                        main3.push("B");
-                    } else if next3.starts_with(func[0]) {
-                        next3 = &next3[func[0].len()..];
-                        main3.push("A");
-                    } else {
-                        break;
-                    }
-                }
-                if next3.is_empty() {
-                    main = Some(main3);
-                    break 'found;
-                }
-            }
-        }
+        (remains, matches)
     }
+    fn search<'a>(
+        remains: &'a [String],
+        patterns: &mut Vec<&'a [String]>,
+        matches: Vec<&'static str>,
+    ) -> Option<Vec<&'static str>> {
+        for len in 1..remains.len() {
+            let pat = &remains[0..len];
+            if pat.len() > 10 {
+                break;
+            }
+            patterns.push(pat);
+            let (new_remains, new_matches) = find_matches(remains, patterns);
+            let mut matches = matches.clone();
+            matches.extend(new_matches);
+            if patterns.len() == 3 {
+                if new_remains.is_empty() {
+                    return Some(matches);
+                }
+            } else if let Some(ret) = search(new_remains, patterns, matches) {
+                return Some(ret);
+            }
+            patterns.pop();
+        }
+        None
+    }
+    let mut func = vec![];
+    let matches = search(instructions, &mut func, vec![]).unwrap();
     [
-        main.unwrap().join(","),
+        matches.join(","),
         func[0].join(","),
         func[1].join(","),
         func[2].join(","),
