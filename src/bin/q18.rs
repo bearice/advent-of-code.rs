@@ -83,6 +83,25 @@ impl Map {
             .sorted()
             .collect_vec()
     }
+
+    fn into_map2(mut self) -> Self {
+        let center = self.points[&'0'];
+        self.map[center.1 - 1][center.0 - 1] = '1';
+        self.map[center.1 - 1][center.0] = '#';
+        self.map[center.1 - 1][center.0 + 1] = '2';
+        self.map[center.1][center.0 - 1] = '#';
+        self.map[center.1][center.0] = '#';
+        self.map[center.1][center.0 + 1] = '#';
+        self.map[center.1 + 1][center.0 - 1] = '3';
+        self.map[center.1 + 1][center.0] = '#';
+        self.map[center.1 + 1][center.0 + 1] = '4';
+        self.points.remove(&'0');
+        self.points.insert('1', (center.0 - 1, center.1 - 1));
+        self.points.insert('2', (center.0 + 1, center.1 - 1));
+        self.points.insert('3', (center.0 - 1, center.1 + 1));
+        self.points.insert('4', (center.0 + 1, center.1 + 1));
+        self
+    }
 }
 
 fn solve1(map: &Map) -> usize {
@@ -127,7 +146,7 @@ fn solve1(map: &Map) -> usize {
         keys: map.all_keys(),
     };
     fn edges(map: &Map, x: &Node) -> Vec<(Node, usize)> {
-        println!("edges: {:?}", x);
+        // println!("edges: {:?}", x);
         let keys = x.keys.clone();
         let start = map.points[&x.pos];
         let all_keys = map
@@ -162,12 +181,97 @@ fn solve1(map: &Map) -> usize {
     shortest_path(start, end, |x| edges(map, x)).unwrap()
 }
 
+fn solve2(map: &Map) -> usize {
+    use std::hash::Hash;
+    #[derive(Debug, Eq, Clone)]
+    struct Node {
+        pos: [char; 4],
+        keys: Vec<char>,
+    }
+
+    impl Ord for Node {
+        fn cmp(&self, other: &Self) -> Ordering {
+            self.keys.cmp(&other.keys)
+        }
+    }
+
+    impl PartialOrd for Node {
+        fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+            self.keys.partial_cmp(&other.keys)
+        }
+    }
+
+    impl PartialEq for Node {
+        fn eq(&self, other: &Self) -> bool {
+            self.pos
+                .iter()
+                .zip(other.pos.iter())
+                .all(|(&a, &b)| (a == '?' || b == '?' || a == b))
+                && self.keys == other.keys
+        }
+    }
+
+    impl Hash for Node {
+        fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+            self.keys.hash(state);
+        }
+    }
+
+    let start = Node {
+        pos: ['1', '2', '3', '4'],
+        keys: vec![],
+    };
+    let end = Node {
+        pos: ['?', '?', '?', '?'],
+        keys: map.all_keys(),
+    };
+    fn edges(map: &Map, node: &Node) -> Vec<(Node, usize)> {
+        // println!("node: {:?}", node);
+        let mut ret = vec![];
+        for i in 0..4 {
+            let start = map.points[&node.pos[i]];
+            let all_keys = map
+                .points
+                .iter()
+                .filter_map(|(ch, p)| {
+                    if ch.is_ascii_lowercase() && !node.keys.contains(ch) {
+                        Some(*p)
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>();
+            let edges = if all_keys.is_empty() {
+                vec![]
+            } else {
+                shortest_path_multi(start, &all_keys, |&x| map.all_moves(x, &node.keys))
+                    .into_iter()
+                    .filter(|x| x.1.is_some())
+                    .map(|(p, cost)| {
+                        let mut n = node.clone();
+                        n.pos[i] = map.get(p);
+                        n.keys.push(map.get(p));
+                        n.keys.sort_unstable();
+                        (n, cost.unwrap())
+                    })
+                    .collect_vec()
+            };
+            ret.extend(edges);
+        }
+        ret
+    }
+
+    shortest_path(start, end, |x| edges(map, x)).unwrap()
+}
+
 fn main() {
     let map = read_lines("input18.txt")
         .map(|line| line.chars().collect())
         .collect();
     let map = Map::new(map);
     println!("{}", solve1(&map));
+    let map = map.into_map2();
+    println!("{}", solve2(&map));
 }
 
 pub fn shortest_path_multi<T, F>(start: T, end: &[T], edges: F) -> HashMap<T, Option<usize>>
