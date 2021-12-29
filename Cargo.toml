@@ -14,5 +14,5 @@ regex="1.4"
 #pcre = "0.2.3"
 cached = "0.26"
 itertools = "0.10"
-
+mod_exp = "1"
 [lib]

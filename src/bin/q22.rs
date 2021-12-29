@@ -1,95 +1,72 @@
-use std::collections::{HashSet, VecDeque};
-
 use advent_of_code::common::read_lines;
+use itertools::Itertools;
 
-fn read_numbers(i: &mut dyn Iterator<Item = String>) -> VecDeque<usize> {
-    let mut ret = VecDeque::new();
-    while let Some(n) = i.next() {
-        if n == "" {
-            break;
-        }
-        if !n.starts_with("P") {
-            ret.push_back(n.parse::<usize>().unwrap());
-        }
-    }
-    ret
+fn deal_stack(total: i64, pos: i64) -> i64 {
+    total - pos - 1
 }
 
-fn play1(mut p1: VecDeque<usize>, mut p2: VecDeque<usize>) -> VecDeque<usize> {
-    while p1.len() > 0 && p2.len() > 0 {
-        let n1 = p1.pop_front().unwrap();
-        let n2 = p2.pop_front().unwrap();
-        // println!("p1={:?} p2={:?} n1={} n2={}", p1.len(), p2.len(), n1, n2);
-        assert!(n1 != n2);
-        if n1 > n2 {
-            p1.push_back(n1);
-            p1.push_back(n2);
-        } else {
-            p2.push_back(n2);
-            p2.push_back(n1);
-        }
-    }
-    if p1.len() > 0 {
-        p1
+fn deal_cut(total: i64, cut: i64, pos: i64) -> i64 {
+    let cut = if cut < 0 { total + cut } else { cut } % total;
+    if pos < cut {
+        total - cut + pos
     } else {
-        p2
+        pos - cut
     }
 }
 
-fn play2(mut p1: VecDeque<usize>, mut p2: VecDeque<usize>) -> (bool, VecDeque<usize>) {
-    let mut records = HashSet::new();
-    while p1.len() > 0 && p2.len() > 0 {
-        let n1 = p1.pop_front().unwrap();
-        let n2 = p2.pop_front().unwrap();
-        if !records.insert(p1.clone()) && !records.insert(p2.clone()) {
-            // println!("p1 wins early");
-            return (true, p1);
-        }
-        let win = if n1 <= p1.len() && n2 <= p2.len() {
-            // println!("p1={:?} p2={:?} n1={} n2={}", p1.len(), p2.len(), n1, n2);
-            // println!("recursive play");
-            let mut x1 = p1.clone();
-            x1.resize(n1, 0);
-            let mut x2 = p2.clone();
-            x2.resize(n2, 0);
-            play2(x1, x2).0
-        } else {
-            n1 > n2
-        };
-        if win {
-            // println!("p1 wins");
-            p1.push_back(n1);
-            p1.push_back(n2);
-        } else {
-            // println!("p2 wins");
-            p2.push_back(n2);
-            p2.push_back(n1);
-        }
-    }
-    if p1.len() > 0 {
-        (true, p1)
-    } else {
-        (false, p2)
-    }
-}
-
-fn score(winner: &VecDeque<usize>) -> usize {
-    println!("{:?}", winner);
-    let len = winner.len();
-    winner
-        .iter()
-        .enumerate()
-        .fold(0, |acc, x| acc + (len - x.0) * *x.1)
+fn deal_inc(total: i64, inc: i64, pos: i64) -> i64 {
+    pos * inc % total
 }
 
 fn main() {
-    let mut lines = read_lines("./input22.txt");
-    let p1 = read_numbers(&mut lines);
-    let p2 = read_numbers(&mut lines);
+    std::env::set_var("RUST_BACKTRACE", "1");
+    let input = read_lines("input22.txt").collect_vec();
+    println!("{}", solve1(&input, 2019, 10007));
+    println!("{}", solve2(&input));
+}
 
-    let winner1 = play1(p1.clone(), p2.clone());
-    println!("{}", score(&winner1));
+fn solve1(input: &[String], i: i64, total: i64) -> i64 {
+    let mut i = i;
+    for line in input.iter() {
+        if let Some(inc) = line.strip_prefix("deal with increment ") {
+            i = deal_inc(total, inc.parse().unwrap(), i);
+        } else if line.starts_with("deal into new stack") {
+            i = deal_stack(total, i);
+        } else if let Some(cut) = line.strip_prefix("cut ") {
+            i = deal_cut(total, cut.parse().unwrap(), i);
+        } else {
+            panic!("unknown line: {}", line);
+        }
+    }
+    i
+}
 
-    let (_, winner2) = play2(p1.clone(), p2.clone());
-    println!("{}", score(&winner2));
+// Some magic i totally don't understand
+fn solve2(input: &[String]) -> i128 {
+    use mod_exp::mod_exp;
+
+    const M: i128 = 119_315_717_514_047;
+    const N: i128 = 101_741_582_076_661;
+
+    // Convert the whole process to a linear equation: ax + b
+    let (a, b) = input.iter().rev().fold((1, 0), |(a, b), cmd| {
+        let (a_new, b_new) = match cmd.rsplit_once(' ').unwrap() {
+            (_, "stack") => (-a, -b - 1),
+            ("cut", n) => (a, b + n.parse::<i128>().unwrap()),
+            ("deal with increment", n) => {
+                let n = n.parse::<i128>().unwrap();
+                let n = mod_exp(n, M - 2, M);
+                (a * n, b * n)
+            }
+            _ => panic!("unknown command: {}", cmd),
+        };
+        (a_new % M, b_new % M)
+    });
+
+    // Applying the function n times simplifies to:
+    // x * a^n + b * (a^n - 1) / (a-1)
+    let term1 = 2020 * mod_exp(a, N, M) % M;
+    let tmp = (mod_exp(a, N, M) - 1) * mod_exp(a - 1, M - 2, M) % M;
+    let term2 = b * tmp % M;
+    (term1 + term2) % M
 }
