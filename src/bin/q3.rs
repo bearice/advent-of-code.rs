@@ -1,53 +1,81 @@
-use std::ops::{Not, Shl, Shr};
+use std::collections::HashSet;
 
 use advent_of_code::common::read_lines;
+use itertools::Itertools;
 
 fn main() {
-    let data = read_lines("./input3.txt").collect::<Vec<_>>();
-    let data = data.iter().map(|x| x.as_bytes()).collect::<Vec<_>>();
-    let width = data[0].len();
-    let ans = count_bits(&data);
-    let gamma = bin_to_num(&ans);
-    let epsilon = gamma.not().shl(32 - width).shr(32 - width);
-    println!("gamma={} epsilon={}", gamma, epsilon);
-    let ans = gamma * epsilon;
-    println!("a1={}", ans);
-
-    let o2 = find_value(&data, 0, false);
-    let co2 = find_value(&data, 0, true);
-    let ans = o2 * co2;
-    println!("o2={} co2={} ans={}", o2, co2, ans);
+    let lines = read_lines("./input3.txt").collect_vec();
+    print_total(q1(&lines));
+    print_total(q2(&lines));
 }
 
-fn bin_to_num(data: &[u8]) -> u32 {
-    let mut ans = 0;
-    for i in 0..data.len() {
-        ans += u32::from(data[i]) * 2u32.pow((data.len() - i - 1) as u32);
-    }
-    ans
-}
-
-fn count_bits(data: &[&[u8]]) -> Vec<u8> {
-    let width = data[0].len();
-    let ret = data.iter().fold(vec![0; width], |mut acc, line| {
-        for i in 0..width {
-            acc[i] += if line[i] == 48 { -1 } else { 1 }
-        }
-        acc
-    });
-    ret.into_iter().map(|x| if x < 0 { 0 } else { 1 }).collect()
-}
-
-fn find_value(data: &[&[u8]], idx: usize, neg: bool) -> u32 {
-    if data.len() == 1 {
-        let data = data[0].iter().map(|x| x - 48).collect::<Vec<_>>();
-        return bin_to_num(&data);
-    }
-    let flag = count_bits(data)[idx] + 48;
-    let data = data
+fn q1(lines: &[String]) -> Vec<HashSet<char>> {
+    lines
         .iter()
-        .cloned()
-        .filter(|x| (x[idx] == flag) ^ neg)
-        .collect::<Vec<_>>();
-    find_value(&data, idx + 1, neg)
+        .map(|x| split_in_half(x))
+        .map(|x| find_common_char([x.0, x.1]))
+        .collect_vec()
+}
+
+fn q2(lines: &[String]) -> Vec<HashSet<char>> {
+    lines
+        .iter()
+        .map(String::as_str)
+        .chunks(3)
+        .into_iter()
+        .map(find_common_char)
+        .collect_vec()
+}
+
+fn print_total(commons: Vec<HashSet<char>>) {
+    let priorities = commons
+        .into_iter()
+        .map(|x| x.into_iter().map(priority).sum::<i32>())
+        .collect_vec();
+    println!("{}", priorities.iter().sum::<i32>());
+}
+
+// "abcd" -> ("ab","cd")
+fn split_in_half(s: &str) -> (&str, &str) {
+    let mid = s.len() / 2;
+    s.split_at(mid)
+}
+
+fn find_common_char<'a, T: IntoIterator<Item = &'a str>>(strings: T) -> HashSet<char> {
+    let mut common = HashSet::new();
+
+    for s in strings {
+        let chars = s.chars().collect::<HashSet<char>>();
+
+        if common.is_empty() {
+            common = chars;
+        } else {
+            common = common.intersection(&chars).cloned().collect();
+        }
+    }
+
+    common
+}
+
+//Lowercase item types a through z have priorities 1 through 26.
+//Uppercase item types A through Z have priorities 27 through 52.
+fn priority(ch: char) -> i32 {
+    let decimal_value = ch.to_digit(36).unwrap_or(0) as i32 - 9;
+    if ch.is_uppercase() {
+        decimal_value + 26
+    } else {
+        decimal_value
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_priority() {
+        assert_eq!(priority('a'), 1);
+        assert_eq!(priority('A'), 27);
+        assert_eq!(priority('z'), 26);
+        assert_eq!(priority('Z'), 52);
+    }
 }
