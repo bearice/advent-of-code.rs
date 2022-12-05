@@ -1,90 +1,80 @@
-use std::collections::HashMap;
-
 use advent_of_code::common::read_lines;
-
-#[derive(Debug, Clone, Copy)]
-struct Line {
-    x1: u32,
-    y1: u32,
-    x2: u32,
-    y2: u32,
-}
-
-impl Line {
-    fn parse(s: String) -> Self {
-        let s = s.replace(" -> ", ",");
-        let mut parts = s.split(',');
-        Line {
-            x1: parts.next().unwrap().parse().unwrap(),
-            y1: parts.next().unwrap().parse().unwrap(),
-            x2: parts.next().unwrap().parse().unwrap(),
-            y2: parts.next().unwrap().parse().unwrap(),
-        }
-    }
-    fn points(&self) -> Vec<(u32, u32)> {
-        let mut points = vec![];
-        if self.x1 == self.x2 {
-            for y in u32::min(self.y1, self.y2)..=u32::max(self.y1, self.y2) {
-                points.push((self.x1, y));
-            }
-        } else if self.y1 == self.y2 {
-            for x in u32::min(self.x1, self.x2)..=u32::max(self.x1, self.x2) {
-                points.push((x, self.y1));
-            }
-        } else {
-            let (x1, x2, y1, y2) = if self.x1 > self.x2 {
-                (self.x2, self.x1, self.y2, self.y1)
-            } else {
-                (self.x1, self.x2, self.y1, self.y2)
-            };
-            for x in x1..=x2 {
-                let d = x - x1;
-                let y = if y1 < y2 { y1 + d } else { y1 - d };
-                points.push((x, y));
-            }
-        }
-        points
-    }
-}
+use itertools::Itertools;
 
 fn main() {
-    let lines = read_lines("./input5.txt")
-        .map(Line::parse)
-        .collect::<Vec<_>>();
-
-    let a1 = count_overlaps(
-        lines
-            .iter()
-            .filter(|l| l.x1 == l.x2 || l.y1 == l.y2)
-            .cloned(),
-    );
-    let a2 = count_overlaps(lines.into_iter());
-    println!("a1={}, a2={}", a1, a2);
+    let mut lines = read_lines("./input5.txt");
+    let mut stack = vec![];
+    for line in lines.by_ref() {
+        if line.is_empty() {
+            break;
+        }
+        stack.push(line.chars().collect_vec());
+    }
+    let stack = parse_stack(stack);
+    // println!("Stack: {:?}", stack);
+    let commands = lines.map(parse_cmd).collect_vec();
+    // println!("Commands: {:?}", commands);
+    {
+        let mut stack = stack.clone();
+        for cmd in &commands {
+            exec_cmd1(&mut stack, *cmd)
+        }
+        print_stack(&stack);
+    }
+    {
+        let mut stack = stack;
+        for cmd in &commands {
+            exec_cmd2(&mut stack, *cmd)
+        }
+        print_stack(&stack);
+    }
 }
 
-fn count_overlaps(lines: impl Iterator<Item = Line>) -> usize {
-    let mut points = HashMap::new();
-    for line in lines {
-        for point in line.points() {
-            points.insert(point, points.get(&point).unwrap_or(&0) + 1);
+fn parse_stack(mut stack: Vec<Vec<char>>) -> Vec<Vec<char>> {
+    stack.reverse();
+    let indexes = &stack[0];
+    let mut ret = vec![vec![]; 11];
+    for (ch, idx) in indexes.iter().zip(0usize..) {
+        if ch.is_numeric() {
+            let n = ch.to_digit(10).unwrap() as usize;
+            for row in &stack[1..] {
+                if row[idx].is_ascii_alphabetic() {
+                    ret[n].push(row[idx]);
+                }
+            }
         }
     }
-    points.values().filter(|&v| *v > 1).count()
+    ret
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+fn parse_cmd(s: String) -> (usize, usize, usize) {
+    let substrings = s.split_ascii_whitespace().collect_vec();
+    let count = substrings[1].parse().unwrap();
+    let from = substrings[3].parse().unwrap();
+    let to = substrings[5].parse().unwrap();
+    (count, from, to)
+}
 
-    #[test]
-    fn test_parse() {
-        let line = Line::parse("1,1,1,3".to_string());
-        assert_eq!(line.x1, 1);
+fn exec_cmd1(stack: &mut [Vec<char>], (count, from, to): (usize, usize, usize)) {
+    for _ in 0..count {
+        let x = stack[from].pop().unwrap();
+        stack[to].push(x);
     }
+}
 
-    #[test]
-    fn test_points() {
-        let line = Line::parse("1,1,1,3".to_string());
-        assert_eq!(line.points(), vec![(1, 1), (1, 2), (1, 3)]);
-    }
+fn exec_cmd2(stack: &mut [Vec<char>], (count, from, to): (usize, usize, usize)) {
+    let n = stack[from].len();
+    let x = stack[from].splice(n - count..n, []).collect_vec();
+    stack[to].extend(x);
+}
+
+fn print_stack(stack: &[Vec<char>]) {
+    println!(
+        "{}",
+        stack
+            .iter()
+            .filter(|x| !x.is_empty())
+            .map(|x| x[x.len() - 1])
+            .join("")
+    );
 }
