@@ -1,27 +1,26 @@
+use std::{collections::HashSet, iter::FromIterator};
+
 use advent_of_code::common::read_lines;
+use itertools::Itertools;
 
 fn main() {
-    let mut fishes = [0u64; 9];
-    read_lines("./input6.txt")
+    let input = read_lines("./input6.txt")
         .next()
         .unwrap()
-        .split(',')
-        .for_each(|s| fishes[s.parse::<usize>().unwrap()] += 1);
+        .chars()
+        .collect_vec();
 
-    for x in 0..256 {
-        next_day(&mut fishes);
-        if x == 80 {
-            println!("day80={}", fishes.iter().sum::<u64>());
-        }
-    }
-    println!("day256={}", fishes.iter().sum::<u64>());
+    println!("{:?}", find_marker(&input, 4));
+    println!("{:?}", find_marker(&input, 14));
 }
 
-fn next_day(fishes: &mut [u64; 9]) {
-    let new_fish = fishes[0];
-    for i in 1..=8 {
-        fishes[i - 1] = fishes[i];
+fn find_marker(input: &[char], size: usize) -> Option<usize> {
+    let mut n = size;
+    for slice in input.windows(size) {
+        if HashSet::<char>::from_iter(slice.iter().cloned()).len() == size {
+            return Some(n);
+        }
+        n += 1;
     }
-    fishes[6] += new_fish;
-    fishes[8] = new_fish;
+    None
 }
