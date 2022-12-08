@@ -1,97 +1,88 @@
-use std::collections::HashSet;
+use std::iter::repeat;
 
 use advent_of_code::common::read_lines;
+use itertools::Itertools;
 
 fn main() {
-    let input = read_lines("input8.txt").collect::<Vec<_>>();
-    let count = input
-        .iter()
-        .map(|s| {
-            s.split_once('|')
-                .unwrap()
-                .1
-                .split_whitespace()
-                .filter(|w| w.len() == 2 || w.len() == 3 || w.len() == 4 || w.len() == 7)
-                .count()
+    let mut input = read_lines("input8.txt")
+        .map(|line| {
+            line.chars()
+                .map(|ch| ch.to_digit(10).unwrap() as i32)
+                .zip(repeat(false))
+                .collect_vec()
         })
-        .sum::<usize>();
-    println!("{}", count);
-    let sum = input.iter().map(|s| decode(s.as_str())).sum::<u32>();
-    println!("{}", sum);
-}
+        .collect_vec();
 
-fn decode(input: &str) -> u32 {
-    let (sample, output) = input.split_once('|').unwrap();
-    let samples = sample.split_whitespace().collect::<Vec<_>>();
-    let mut wires = [""; 10];
-    for s in samples.iter() {
-        match s.len() {
-            2 => wires[1] = s,
-            3 => wires[7] = s,
-            4 => wires[4] = s,
-            7 => wires[8] = s,
-            _ => (),
+    for _ in 0..3 {
+        check_visible(&mut input);
+        rotate_vec(&mut input);
+    }
+    check_visible(&mut input);
+    let count: usize = input
+        .iter()
+        .map(|row| row.iter().filter(|(_, visible)| *visible).count())
+        .sum();
+    println!("{}", count);
+    let mut max = 0;
+    for x in 0..input.len() {
+        for y in 0..input.len() {
+            max = max.max(score(&input, x, y));
         }
     }
-    // let _A = diff(wires[7].chars(), wires[1].chars());
-    let bd = diff(wires[4].chars(), wires[1].chars());
-    let abcdf = union(wires[4].chars(), wires[7].chars());
-    wires[9] = find(samples.clone(), &abcdf, 6);
-    let g = diff(wires[9].chars(), abcdf.into_iter());
-    let e = diff(wires[8].chars(), wires[9].chars());
-    let cfeg = union(vec![g[0], e[0]], wires[1].chars());
-    wires[0] = find(samples.iter().cloned().filter(|s| *s != wires[9]), &cfeg, 6);
-    let cf = wires[1].chars().collect::<Vec<_>>();
-    wires[3] = find(samples.clone(), &cf, 5);
-    let bed = union(bd, e.clone());
-    wires[6] = find(samples.clone(), &bed, 6);
-    let c = diff(wires[8].chars(), wires[6].chars());
-    let ce = vec![c[0], e[0]];
-    wires[2] = find(samples.clone(), &ce, 5);
-    let bdf = diff(wires[4].chars(), c);
-    wires[5] = find(samples.clone(), &bdf, 5);
-    // println!("{:?}", wires);
-    let outputs = output.split_whitespace().collect::<Vec<_>>();
-    let mut result = 0;
-    for (i, o) in outputs.iter().enumerate() {
-        for j in 0..10 {
-            let t = wires[j as usize];
-            if o.len() == t.len() && o.chars().all(|c| t.contains(c)) {
-                // println!("{}={}", o, j);
-                result += j * 10_u32.pow((outputs.len() - i - 1) as u32);
+    println!("{}", max);
+}
+
+fn check_visible(input: &mut Vec<Vec<(i32, bool)>>) {
+    for row in input {
+        let mut max = -1;
+        for cell in row {
+            if cell.0 > max {
+                max = cell.0;
+                cell.1 = true;
             }
         }
     }
-    result
 }
 
-fn find<'a>(
-    samples: impl IntoIterator<Item = &'a str>,
-    contains: &[char],
-    length: usize,
-) -> &'a str {
-    samples
-        .into_iter()
-        .find(|s| s.len() == length && contains_all(s, contains))
-        .unwrap()
-}
-
-fn diff(a: impl IntoIterator<Item = char>, b: impl IntoIterator<Item = char>) -> Vec<char> {
-    let b: HashSet<_> = b.into_iter().collect();
-    a.into_iter().filter(|c| !b.contains(c)).collect()
-}
-
-fn union(a: impl IntoIterator<Item = char>, b: impl IntoIterator<Item = char>) -> Vec<char> {
-    let mut set = HashSet::new();
-    for c in a {
-        set.insert(c);
+fn rotate_vec(vec: &mut Vec<Vec<(i32, bool)>>) {
+    let n = vec.len();
+    for i in 0..n / 2 {
+        for j in i..n - i - 1 {
+            let tmp = vec[i][j];
+            vec[i][j] = vec[n - j - 1][i];
+            vec[n - j - 1][i] = vec[n - i - 1][n - j - 1];
+            vec[n - i - 1][n - j - 1] = vec[j][n - i - 1];
+            vec[j][n - i - 1] = tmp;
+        }
     }
-    for c in b {
-        set.insert(c);
-    }
-    set.into_iter().collect()
 }
 
-fn contains_all(s: &str, chars: &[char]) -> bool {
-    chars.iter().all(|c| s.contains(*c))
+fn score(input: &[Vec<(i32, bool)>], x: usize, y: usize) -> usize {
+    let n = input.len();
+    if x == 0 || y == 0 || x == n - 1 || y == n - 1 {
+        return 0;
+    }
+    let l = count_visible(input, x, y, -1, 0);
+    let r = count_visible(input, x, y, 1, 0);
+    let u = count_visible(input, x, y, 0, -1);
+    let d = count_visible(input, x, y, 0, 1);
+    l * r * u * d
+}
+
+fn count_visible(input: &[Vec<(i32, bool)>], x: usize, y: usize, dx: i32, dy: i32) -> usize {
+    let n = input[x][y].0;
+    let mut x = x as i32;
+    let mut y = y as i32;
+    let mut step = 0;
+    loop {
+        x += dx;
+        y += dy;
+        step += 1;
+        if input[x as usize][y as usize].0 >= n {
+            return step;
+        }
+        if x == 0 || y == 0 || x as usize == input.len() - 1 || y as usize == input.len() - 1 {
+            return step;
+        }
+    }
 }
