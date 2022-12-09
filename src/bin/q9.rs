@@ -1,75 +1,92 @@
-use std::{cmp::Reverse, collections::HashSet};
+use std::{collections::HashSet, fmt::Debug};
 
 use advent_of_code::common::read_lines;
 
+#[derive(Default, Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+struct Point {
+    x: i32,
+    y: i32,
+}
+
+impl Debug for Point {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "({},{})", self.x, self.y)
+    }
+}
+
 fn main() {
-    let numbers = read_lines("./input9.txt")
+    let input = read_lines("./input9.txt")
         .map(|x| {
-            x.into_bytes()
-                .into_iter()
-                .map(|y| (y - 48) as u32)
-                .collect::<Vec<_>>()
+            let mut i = x.split_ascii_whitespace();
+            (
+                i.next().unwrap().chars().next().unwrap(),
+                i.next().unwrap().parse().unwrap(),
+            )
         })
         .collect::<Vec<_>>();
-    // let mut sum = 0;
-    let mut lowest = Vec::new();
-    for (y, row) in numbers.iter().enumerate() {
-        for (x, i) in row.iter().enumerate() {
-            let neighbors = neighbors(x, y, &numbers);
-            if neighbors.iter().all(|&n| n.0 > *i) {
-                lowest.push((*i, x, y));
-            }
-        }
-    }
-    println!("{}", lowest.iter().map(|&n| n.0 + 1).sum::<u32>());
-    let mut basins = Vec::new();
-    for p in lowest {
-        basins.push(find_basin(p, &numbers));
-    }
-    basins.sort_by_key(|x| Reverse(*x));
-    // println!("{:?}", basins);
-    println!("{}", basins[0] * basins[1] * basins[2]);
+
+    println!("{}", move_rope(2, &input));
+    println!("{}", move_rope(10, &input));
 }
 
-fn find_basin((i, x, y): (u32, usize, usize), numbers: &[Vec<u32>]) -> usize {
-    let mut basin = HashSet::new();
+fn move_rope(len: usize, steps: &[(char, i32)]) -> usize {
+    let mut rope: Vec<Point> = vec![Default::default(); len];
     let mut visited = HashSet::new();
-    let mut queue = vec![(i, x, y)];
-    while let Some(pos) = queue.pop() {
-        // println!("pos={:?}", pos);
-        if visited.contains(&pos) {
-            continue;
-        }
-        visited.insert(pos);
-        for n in neighbors(pos.1, pos.2, numbers) {
-            // println!("n={:?}", n);
-            if n.0 == 9 || n.0 < pos.0 {
-                continue;
+    for &(dir, count) in steps {
+        for _ in 0..count {
+            match dir {
+                'U' => rope[0].y += 1,
+                'D' => rope[0].y -= 1,
+                'L' => rope[0].x -= 1,
+                'R' => rope[0].x += 1,
+                _ => unreachable!(),
             }
-            if !visited.contains(&n) {
-                queue.push(n);
+            for i in 0..len - 1 {
+                rope[i + 1] = move_tail(rope[i], rope[i + 1]);
             }
-            basin.insert(n);
+            visited.insert(rope[len - 1]);
         }
     }
-    // println!("basin={:?}", basin);
-    basin.len() + 1
+    // print_map(&visited);
+    visited.len()
 }
 
-fn neighbors(x: usize, y: usize, numbers: &[Vec<u32>]) -> Vec<(u32, usize, usize)> {
-    let mut ret = Vec::new();
-    let mut push_number = |x: usize, y: usize| ret.push((numbers[y][x], x, y));
-    if x > 0 {
-        push_number(x - 1, y);
+fn move_tail(head: Point, tail: Point) -> Point {
+    let dx = tail.x - head.x;
+    let dy = tail.y - head.y;
+    // print!(" dx={} dy={}", dx, dy);
+    if dx.abs() == 2 || dy.abs() == 2 {
+        return Point {
+            x: head.x + dx / 2,
+            y: head.y + dy / 2,
+        };
     }
-    if y > 0 {
-        push_number(x, y - 1);
+    tail
+}
+
+#[allow(dead_code)]
+fn print_map(v: &HashSet<Point>) {
+    let mut min_x = std::i32::MAX;
+    let mut max_x = std::i32::MIN;
+    let mut min_y = std::i32::MAX;
+    let mut max_y = std::i32::MIN;
+    for &p in v {
+        min_x = std::cmp::min(min_x, p.x);
+        max_x = std::cmp::max(max_x, p.x);
+        min_y = std::cmp::min(min_y, p.y);
+        max_y = std::cmp::max(max_y, p.y);
     }
-    if x < numbers[y].len() - 1 {
-        push_number(x + 1, y);
+    for y in -max_y..=-min_y {
+        for x in min_x..=max_x {
+            let y = -y;
+            if x == 0 && y == 0 {
+                print!("s");
+            } else if v.contains(&Point { x, y }) {
+                print!("#");
+            } else {
+                print!(" ");
+            }
+        }
+        println!();
     }
-    if y < numbers.len() - 1 {
-        push_number(x, y + 1);
-    }
-    ret
 }
