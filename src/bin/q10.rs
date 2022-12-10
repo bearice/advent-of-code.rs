@@ -1,50 +1,45 @@
 use advent_of_code::common::read_lines;
 
 fn main() {
-    let lines = read_lines("input10.txt");
-    let (s1, s2): (Vec<usize>, Vec<usize>) = lines.map(score_of_line).unzip();
-    let mut s2 = s2.into_iter().filter(|x| *x > 0).collect::<Vec<_>>();
-    s2.sort_unstable();
-    println!("{} {}", s1.into_iter().sum::<usize>(), s2[s2.len() / 2]);
-}
-
-fn score_of_line(line: String) -> (usize, usize) {
-    let mut stack = vec![];
-    for ch in line.chars() {
-        match ch {
-            '(' | '[' | '<' | '{' => stack.push(ch),
-            _ => {
-                let top = stack.pop().unwrap();
-                let x = score_of1(ch);
-                if top != x.0 {
-                    return (x.1, 0);
-                }
+    let ops = read_lines("input10.txt").map(parse);
+    let mut reg = 1;
+    let mut cycles = vec![];
+    for op in ops {
+        match op {
+            None => {
+                cycles.push(reg);
+            }
+            Some(x) => {
+                cycles.push(reg);
+                cycles.push(reg);
+                reg += x;
             }
         }
     }
-    let mut score2 = 0;
-    while !stack.is_empty() {
-        score2 = score2 * 5 + score_of2(stack.pop().unwrap());
+    let mut totals = 0;
+    for i in [20, 60, 100, 140, 180, 220] {
+        totals += i as i32 * cycles[i - 1];
     }
-    (0, score2)
+    println!("{}", totals);
+    for y in 0..6 {
+        let mut row = String::new();
+        for x in 0..40 {
+            let i = x + y * 40;
+            let sprite = cycles[i as usize];
+            if (sprite - 1..=sprite + 1).contains(&x) {
+                row.push('#');
+            } else {
+                row.push(' ');
+            }
+        }
+        println!("{}", row);
+    }
 }
 
-fn score_of1(ch: char) -> (char, usize) {
-    match ch {
-        ')' => ('(', 3),
-        ']' => ('[', 57),
-        '}' => ('{', 1197),
-        '>' => ('<', 25137),
-        _ => panic!("not possible"),
-    }
-}
-
-fn score_of2(ch: char) -> usize {
-    match ch {
-        '(' => 1,
-        '[' => 2,
-        '{' => 3,
-        '<' => 4,
-        _ => panic!("not possible: {}", ch),
+fn parse(str: String) -> Option<i32> {
+    match &str[0..4] {
+        "noop" => None,
+        "addx" => Some(str[5..].parse().unwrap()),
+        _ => panic!("Invalid input"),
     }
 }
