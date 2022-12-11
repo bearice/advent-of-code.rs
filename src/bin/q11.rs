@@ -1,70 +1,123 @@
-use advent_of_code::common::read_u8_matrix;
+use std::{cmp::Reverse, mem::swap, rc::Rc};
 
-type Pool = [Vec<u8>];
+use advent_of_code::common::ReadChunks;
+use itertools::Itertools;
 
-fn adj(pool: &Pool, ret: &mut Vec<(usize, usize)>, x: usize, y: usize) {
-    let x = x as i32;
-    let y = y as i32;
-    // let mut ret = vec![];
-    let mut push_adj = |x: i32, y: i32| {
-        if x >= 0 && y >= 0 && y < pool.len() as i32 && x < pool[y as usize].len() as i32 {
-            ret.push((x as usize, y as usize));
-        }
-    };
-    push_adj(x - 1, y - 1);
-    push_adj(x - 1, y);
-    push_adj(x - 1, y + 1);
-    push_adj(x, y - 1);
-    push_adj(x, y + 1);
-    push_adj(x + 1, y - 1);
-    push_adj(x + 1, y);
-    push_adj(x + 1, y + 1);
+fn main() {
+    let monkeys = ReadChunks::new("input11.txt")
+        .map(parse_monkey)
+        .collect_vec();
+
+    solve(monkeys.clone(), 20, 3);
+    solve(monkeys, 10000, 1);
 }
-
-fn run_round(pool: &mut Pool) -> usize {
-    let mut ret = 0;
-    let mut queue = vec![];
-    for y in 0..pool.len() {
-        for x in 0..pool[y].len() {
-            let cell = &mut pool[y][x];
-            *cell += 1;
-            if *cell > 9 {
-                *cell = 0;
-                ret += 1;
-                adj(pool, &mut queue, x, y);
+fn solve(mut monkeys: Vec<Monkey>, rounds: usize, div_by: usize) {
+    let mut mod_by = 1;
+    for m in &monkeys {
+        mod_by *= m.test;
+    }
+    for _ in 0..rounds {
+        for i in 0..monkeys.len() {
+            for (new, next) in monkeys[i].take_turn(div_by, mod_by) {
+                monkeys[next].items.push(new);
             }
         }
     }
-    while let Some((x, y)) = queue.pop() {
-        let cell = &mut pool[y][x];
-        if *cell > 0 {
-            *cell += 1
-        }
-        if *cell > 9 {
-            *cell = 0;
-            ret += 1;
-            adj(pool, &mut queue, x, y);
-        }
-    }
-    ret
+    monkeys.sort_by_key(|x| Reverse(x.inspects));
+    println!("{}", monkeys[0].inspects * monkeys[1].inspects);
 }
-fn main() {
-    let mut pool = read_u8_matrix("./input11.txt");
 
-    let mut sum = 0;
-    let mut i = 0;
-    loop {
-        sum += run_round(&mut pool);
-        // for row in pool.iter() {
-        //     println!("{:?}", row);
-        // }
-        i += 1;
-        if i == 100 {
-            println!("sum={}", sum);
-        }
-        if pool.iter().all(|row| row.iter().all(|cell| *cell == 0)) {
-            println!("round={}", i);
-            break;
-        }
+#[allow(dead_code)]
+#[derive(Clone)]
+struct Monkey {
+    id: usize,
+    inspects: usize,
+    items: Vec<usize>,
+    op: Rc<dyn Fn(usize) -> usize>,
+    test: usize,
+    target: (usize, usize),
+}
+
+impl Monkey {
+    fn take_turn(&mut self, div_by: usize, mod_by: usize) -> Vec<(usize, usize)> {
+        let mut items = vec![];
+        swap(&mut self.items, &mut items);
+        self.inspects += items.len();
+        items
+            .into_iter()
+            .map(|i| {
+                // println!("Monkey {} inpsect item {}", self.id, i);
+                let new = (((self.op)(i)) / div_by) % mod_by;
+                // println!("New item: {}", new);
+                let next = if new % self.test == 0 {
+                    self.target.0
+                } else {
+                    self.target.1
+                };
+                (new, next)
+            })
+            .collect_vec()
     }
+}
+fn parse_monkey(input: Vec<String>) -> Monkey {
+    let id = input[0][7..8].parse().unwrap();
+    let items = parse_items(&input[1]);
+    let op = parse_op(&input[2]);
+    let test = parse_test(&input[3]);
+    let target = parse_target(&input[4], &input[5]);
+    Monkey {
+        id,
+        inspects: 0,
+        items,
+        op,
+        test,
+        target,
+    }
+}
+
+//Starting items: 54, 65, 75, 74
+fn parse_items(input: &str) -> Vec<usize> {
+    input
+        .split_once(':')
+        .unwrap()
+        .1
+        .split(',')
+        .map(str::trim)
+        .map(str::parse)
+        .map(Result::unwrap)
+        .collect()
+}
+
+//Operation: new = old * 19
+fn parse_op(input: &str) -> Rc<dyn Fn(usize) -> usize> {
+    let expr = input.split_once('=').unwrap().1;
+    let tokens = expr.split_ascii_whitespace().collect::<Vec<_>>();
+    let op1 = tokens[0].parse();
+    let op2 = tokens[2].parse();
+    let op = tokens[1].to_owned();
+    let ret = move |old| {
+        let op1 = op1.clone().unwrap_or(old);
+        let op2 = op2.clone().unwrap_or(old);
+        match op.as_str() {
+            "+" => op1 + op2,
+            "-" => op1 - op2,
+            "*" => op1 * op2,
+            "/" => op1 / op2,
+            _ => unreachable!(),
+        }
+    };
+    Rc::new(ret)
+}
+
+//Test: divisible by 13
+fn parse_test(input: &str) -> usize {
+    input.split_once("by ").unwrap().1.parse().unwrap()
+}
+
+//If true: throw to monkey 1
+//If false: throw to monkey 3
+fn parse_target(if_true: &str, if_false: &str) -> (usize, usize) {
+    let if_true = if_true.split_once("monkey ").unwrap().1.parse().unwrap();
+    let if_false = if_false.split_once("monkey ").unwrap().1.parse().unwrap();
+    (if_true, if_false)
 }
