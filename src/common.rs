@@ -2,12 +2,21 @@ use std::io::BufRead;
 use std::path::Path;
 use std::{fs::File, io::BufReader};
 
+use itertools::Itertools;
+
 pub fn read_lines<P>(filename: P) -> impl Iterator<Item = String>
 where
     P: AsRef<Path>,
 {
     let file = File::open(filename).expect("open file");
     BufReader::new(file).lines().map(|lines| lines.unwrap())
+}
+
+pub fn read_matrix(filename: &str) -> Vec<Vec<char>> {
+    read_lines(filename)
+        .into_iter()
+        .map(|s| s.chars().collect_vec())
+        .collect_vec()
 }
 
 pub fn read_u8_matrix(filename: &str) -> Vec<Vec<u8>> {
@@ -80,4 +89,36 @@ pub fn find_edge(points: impl IntoIterator<Item = (i32, i32)>) -> (i32, i32, i32
                 std::cmp::max(acc.3, x.1),
             )
         })
+}
+
+pub fn shortest_path<T, F>(start: T, end: T, edges: F) -> Option<usize>
+where
+    T: std::hash::Hash + Eq + Clone + Ord,
+    F: Fn(&T) -> Vec<(T, usize)>,
+{
+    use std::cmp::Reverse;
+    use std::collections::{BinaryHeap, HashMap};
+    let mut dist: HashMap<T, usize> = HashMap::new();
+    let mut heap = BinaryHeap::new();
+
+    dist.insert(start.clone(), 0);
+    heap.push(Reverse((0, start)));
+
+    while let Some(Reverse((cost, pos))) = heap.pop() {
+        if pos == end {
+            return Some(cost);
+        }
+        if cost > dist[&pos] {
+            continue;
+        }
+        for (edge, new_cost) in edges(&pos) {
+            let new_cost = cost + new_cost;
+            let d = dist.entry(edge.clone()).or_insert(usize::MAX);
+            if new_cost < *d {
+                heap.push(Reverse((new_cost, edge)));
+                *d = new_cost;
+            }
+        }
+    }
+    None
 }
