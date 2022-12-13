@@ -12,7 +12,7 @@ regex="1.4"
 #pest="2"
 #pest_derive = "2"
 #pcre = "0.2.3"
-cached = "0.26"
+cached = "0.40"
 itertools = "0.10"
-
+json = "0.12.4"
 [lib]
