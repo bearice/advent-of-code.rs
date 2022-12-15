@@ -1,64 +1,83 @@
-use std::{cmp::Reverse, collections::BinaryHeap};
-
-use advent_of_code::common::{adj_list, read_u8_matrix};
+use advent_of_code::common::read_lines;
+use itertools::Itertools;
 
 fn main() {
-    let map = read_u8_matrix("input15.txt");
-    println!(
-        "{:?}",
-        shortest_path(&map, (0, 0), (map.len() - 1, map[0].len() - 1))
-    );
-    // println!("{:?}", enlarge(vec![vec![8]]))
-    let map = enlarge(map);
-    println!(
-        "{:?}",
-        shortest_path(&map, (0, 0), (map.len() - 1, map[0].len() - 1))
-    );
-}
-
-fn enlarge(map: Vec<Vec<u8>>) -> Vec<Vec<u8>> {
-    let mut ret = Vec::new();
-    for x in 0..5 {
-        for line in &map {
-            let mut new_line = Vec::new();
-            for y in 0..5 {
-                for &n in line {
-                    let n = n as u32 + x + y - 1;
-                    new_line.push((n % 9) as u8 + 1);
-                }
-            }
-            ret.push(new_line);
+    let input = read_lines("input15.txt").map(parse).collect_vec();
+    let ranges = find_ranges(&input, 2000000, None);
+    println!("{}", ranges.iter().map(|(s, e)| e - s).sum::<i32>());
+    for y in 0..4000000 {
+        let ranges = find_ranges(&input, y, Some((0, 4000000)));
+        if ranges.len() > 1 {
+            let x = (ranges[0].1 + 1) as usize;
+            println!("{}", x * 4000000 + y as usize);
+            break;
         }
     }
-    ret
 }
 
-// Dijkstra’s algorithm from rust std library documentation
-fn shortest_path(nodes: &[Vec<u8>], start: (usize, usize), goal: (usize, usize)) -> Option<usize> {
-    let max = (nodes.len(), nodes[0].len());
-    let mut dist: Vec<Vec<usize>> = (0..nodes.len())
-        .map(|_| (0..nodes[0].len()).map(|_| usize::MAX).collect())
-        .collect();
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct Point {
+    x: i32,
+    y: i32,
+}
 
-    let mut heap = BinaryHeap::new();
+impl Point {
+    fn distance(&self, other: &Point) -> i32 {
+        (self.x - other.x).abs() + (self.y - other.y).abs()
+    }
+}
 
-    dist[start.0][start.1] = 0;
-    heap.push(Reverse((0, start)));
+//Sensor at x=2389280, y=2368338: closest beacon is at x=2127703, y=2732666
+fn parse(input: String) -> (Point, Point) {
+    let input = input
+        .split_ascii_whitespace()
+        .filter_map(|s| s.trim_matches(&['x', 'y', '=', ',', ':'][..]).parse().ok())
+        .collect_vec();
+    (
+        Point {
+            x: input[0],
+            y: input[1],
+        },
+        Point {
+            x: input[2],
+            y: input[3],
+        },
+    )
+}
 
-    while let Some(Reverse((cost, pos))) = heap.pop() {
-        if pos == goal {
-            return Some(cost);
-        }
-        if cost > dist[pos.0][pos.1] {
-            continue;
-        }
-        for edge in adj_list(pos, max) {
-            let next = (cost + nodes[edge.0][edge.1] as usize, edge);
-            if next.0 < dist[edge.0][edge.1] {
-                heap.push(Reverse(next));
-                dist[edge.0][edge.1] = next.0;
+fn find_ranges(input: &[(Point, Point)], row: i32, limit: Option<(i32, i32)>) -> Vec<(i32, i32)> {
+    let mut ranges = vec![];
+    for (sensor, beacon) in input {
+        let distance = beacon.distance(sensor);
+        let dy = (sensor.y - row).abs();
+        let dx = distance - dy;
+        if dx >= 0 {
+            let mut range = (sensor.x - dx, sensor.x + dx);
+            if let Some((min, max)) = limit {
+                range.0 = range.0.max(min);
+                range.1 = range.1.min(max);
             }
+            ranges.push(range);
         }
     }
-    None
+    merge_ranges(ranges)
+}
+
+fn merge_ranges(mut ranges: Vec<(i32, i32)>) -> Vec<(i32, i32)> {
+    ranges.sort();
+    let mut merged = vec![ranges[0]];
+    let mut i = 1;
+    let mut next = 0;
+    while i < ranges.len() {
+        let r = ranges[i];
+        // println!("last={:?}, r={:?}", merged[next], r);
+        if r.0 > merged[next].1 {
+            merged.push(r);
+            next += 1;
+        } else {
+            merged[next].1 = merged[next].1.max(r.1);
+        }
+        i += 1;
+    }
+    merged
 }
